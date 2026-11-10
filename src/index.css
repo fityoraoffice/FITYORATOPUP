@@ -1,0 +1,402 @@
+@import "tailwindcss";
+
+/* -------------------------------------------------------------
+ * CAHYOSTORE / FITYORASTORE DESIGN SYSTEM
+ * Day (Light) & Night (Dark) Mode Engine + Android Mobile Optimization
+ * ------------------------------------------------------------- */
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Android touch & mobile performance optimizations */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Prevent Android Chrome / Mobile browser auto-zoom on input focus */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, #060911);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #1e293b);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #00F0FF 0%, #7000FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass panel & cards default (Dark Cyber Mode) */
+.glass-panel {
+  background-color: var(--bg-panel, rgba(15, 23, 42, 0.88));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.glass-card {
+  background-color: var(--bg-card, rgba(23, 32, 54, 0.88));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--border-card, rgba(255, 255, 255, 0.07));
+}
+
+/* -------------------------------------------------------------
+ * DAY / LIGHT CONTRAST MODE (High-Visibility for Android & Desktop)
+ * Complete Visual Unity across all Cards, Docks, Texts, and Surfaces
+ * ------------------------------------------------------------- */
+html.light-contrast {
+  color-scheme: light;
+}
+
+html.light-contrast body,
+body[data-color-mode="light"] {
+  background-color: #f5f8fc !important;
+  color: #0f172a !important; /* slate-900 */
+}
+
+/* Text overrides in Day Mode */
+html.light-contrast .text-white,
+html.light-contrast .text-slate-100,
+html.light-contrast .text-slate-200 {
+  color: #0f172a !important;
+}
+
+html.light-contrast .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light-contrast .text-slate-400 {
+  color: #334155 !important;
+}
+
+html.light-contrast .text-slate-500 {
+  color: #475569 !important;
+}
+
+/* Enhance colored accent texts for daylight readability */
+html.light-contrast .text-cyan-400,
+html.light-contrast .text-cyan-300 {
+  color: #0284c7 !important; /* sky-600 */
+}
+
+html.light-contrast .text-purple-400,
+html.light-contrast .text-purple-300 {
+  color: #7c3aed !important; /* violet-600 */
+}
+
+html.light-contrast .text-emerald-400,
+html.light-contrast .text-emerald-300 {
+  color: #059669 !important; /* emerald-600 */
+}
+
+html.light-contrast .text-amber-400,
+html.light-contrast .text-amber-300 {
+  color: #d97706 !important; /* amber-600 */
+}
+
+/* Glass panels & cards in Day Mode: kaca buram lembut + tepi tipis, menyatu dengan latar (tanpa kotak keras) */
+html.light-contrast .glass-panel {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: 0 8px 30px -12px rgba(15, 23, 42, 0.12), 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  color: #0f172a !important;
+}
+
+html.light-contrast .glass-card {
+  background-color: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: 0 4px 18px -8px rgba(15, 23, 42, 0.1) !important;
+  color: #0f172a !important;
+}
+
+/* Container gelap bawaan -> kaca terang. Bertingkat (panel di dalam panel) tetap terbaca
+   karena tiap lapis sedikit transparan, bukan blok putih solid berborder tebal. */
+html.light-contrast [class*="bg-slate-900"],
+html.light-contrast [class*="bg-slate-950"],
+html.light-contrast [class*="bg-[#07090e]"],
+html.light-contrast [class*="bg-[#0b0f19]"],
+html.light-contrast [class*="bg-[#060911]"] {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Lapisan di dalam lapisan: sedikit lebih redup agar ada kedalaman tanpa garis keras */
+html.light-contrast [class*="bg-slate-900"] [class*="bg-slate-950"],
+html.light-contrast [class*="bg-slate-900"] [class*="bg-slate-900"],
+html.light-contrast .glass-card [class*="bg-slate-900"],
+html.light-contrast .glass-panel [class*="bg-slate-900"] {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+}
+
+/* Secondary button, chip, and badge backgrounds in Day Mode */
+html.light-contrast [class*="bg-slate-800"],
+html.light-contrast .cat-btn:not(.active) {
+  background-color: rgba(226, 232, 240, 0.65) !important;
+  color: #1e293b !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+html.light-contrast .hover\:bg-slate-700:hover,
+html.light-contrast [class*="hover:bg-slate-700"]:hover,
+html.light-contrast [class*="hover:bg-slate-800"]:hover {
+  background-color: rgba(203, 213, 225, 0.75) !important;
+  color: #0f172a !important;
+}
+
+/* Active Category Button in Day Mode */
+html.light-contrast .cat-btn.active {
+  color: #ffffff !important;
+}
+
+html.light-contrast .cat-btn.active span {
+  color: #ffffff !important;
+}
+
+/* Universal border overrides in Day Mode */
+html.light-contrast [class*="border-white/"],
+html.light-contrast .border-slate-800,
+html.light-contrast .border-slate-700 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Product Card Glow in Day Mode */
+html.light-contrast .product-card-glow {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: 0 4px 16px -8px rgba(15, 23, 42, 0.12) !important;
+}
+
+html.light-contrast .product-card-glow:hover {
+  border-color: rgba(2, 132, 199, 0.45) !important;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12) !important;
+}
+
+/* Input & Textarea fields in Day Mode */
+html.light-contrast input:not([type="checkbox"]):not([type="radio"]),
+html.light-contrast textarea,
+html.light-contrast select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light-contrast input::placeholder,
+html.light-contrast textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.light-contrast input:focus,
+html.light-contrast textarea:focus,
+html.light-contrast select:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18) !important;
+  outline: none !important;
+}
+
+/* Sticky Header in Day Mode */
+html.light-contrast header {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-color: rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 6px 24px -14px rgba(15, 23, 42, 0.18) !important;
+}
+
+/* Bottom Navigation Dock in Day Mode */
+html.light-contrast [class*="fixed bottom-0"] {
+  background-color: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: 0 -8px 28px -14px rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Modals & Backdrop in Day Mode */
+html.light-contrast .fixed.inset-0.bg-black\/80,
+html.light-contrast .fixed.inset-0.bg-black\/70,
+html.light-contrast .fixed.inset-0.bg-black\/60,
+html.light-contrast [class*="bg-black/"] {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Payment Method Cards in Day Mode */
+html.light-contrast .payment-card {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+html.light-contrast .gradient-text {
+  background: linear-gradient(135deg, #0284c7 0%, #6d28d9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+
+/* -------------------------------------------------------------
+ * FITYORA STORE - PREMIUM / VIP GAMER POLISH (aditif, aman)
+ * Tidak mengubah struktur; hanya menambah efek pada kelas yang sudah ada.
+ * ------------------------------------------------------------- */
+
+::selection {
+  background: rgba(34, 211, 238, 0.85);
+  color: #020617;
+}
+
+/* Fokus keyboard yang jelas (aksesibilitas) */
+:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Kartu produk: efek angkat + glow neon saat hover (dark mode) */
+.product-card-glow {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.25s ease;
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .product-card-glow:hover {
+    transform: translateY(-3px);
+    border-color: rgba(34, 211, 238, 0.55);
+    box-shadow: 0 8px 28px -8px rgba(34, 211, 238, 0.35), 0 0 0 1px rgba(112, 0, 255, 0.25);
+  }
+}
+.product-card-glow:active {
+  transform: scale(0.98);
+}
+
+/* Tombol kategori: transisi halus */
+.cat-btn {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cat-btn.active {
+  box-shadow: 0 0 18px -4px rgba(34, 211, 238, 0.55);
+}
+
+/* Teks gradien dengan kilau bergerak (opsional, pakai kelas .gradient-text-shine) */
+@keyframes fy-shine {
+  to { background-position: 200% center; }
+}
+.gradient-text-shine {
+  background: linear-gradient(110deg, #00f0ff 20%, #a78bfa 40%, #00f0ff 60%, #7000ff 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: fy-shine 4s linear infinite;
+}
+
+/* Panel/kartu kaca: tepi halus premium (hanya mode malam; mode siang punya bayangan sendiri) */
+html:not(.light-contrast) .glass-card,
+html:not(.light-contrast) .glass-panel {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Perpindahan siang <-> malam terasa halus, tidak "berkedip" */
+.glass-card,
+.glass-panel,
+header {
+  transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, color 0.35s ease;
+}
+
+/* Muncul halus untuk konten baru (opsional, pakai kelas .fy-fade-in) */
+@keyframes fy-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.fy-fade-in {
+  /* "backwards" (bukan "both"): setelah selesai, transform hover/aktif tidak tertimpa animasi. */
+  animation: fy-fade-in 0.35s ease backwards;
+}
+
+/* Baris pesanan baru di dashboard admin: masuk dari atas lalu berdenyut hijau sebentar */
+@keyframes fy-order-pop {
+  0% { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  60% { opacity: 1; transform: translateY(0) scale(1.005); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes fy-order-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(16, 185, 129, 0.22); }
+  50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.5); }
+}
+.fy-order-pop {
+  animation: fy-order-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards,
+             fy-order-glow 1.4s ease-in-out 0.5s 4;
+}
+
+/* Gambar produk: zoom halus saat kartu di-hover (hanya perangkat dengan kursor) */
+.fy-img-zoom {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .product-card-glow:hover .fy-img-zoom {
+    transform: scale(1.06);
+  }
+}
+
+/* Umpan balik sentuhan pada tombol kategori */
+.cat-btn:active {
+  transform: scale(0.96);
+}
+
+/* Pilihan teks bernuansa merek */
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+  color: #fff;
+}
+
+/* Gambar tidak melompat saat dimuat */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Hormati pengaturan "kurangi gerakan" milik pengguna */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

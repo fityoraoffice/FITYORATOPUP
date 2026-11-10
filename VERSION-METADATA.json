@@ -1,0 +1,15 @@
+{
+  "appName": "FITYORA STORE",
+  "version": "v1.2.2026.11",
+  "author": "Author CahyoStore (fityorastoreoffice@gmail.com)",
+  "supportWhatsapp": "08139525985",
+  "updatedAt": "2026-11-09T00:00:00.000Z",
+  "autoUpdated": true,
+  "description": "Kode sumber CahyoStore (FITYORA STORE): Express Function di Vercel + Supabase PostgreSQL.",
+  "instructions": [
+    "1. Supabase SQL Editor: instalasi baru jalankan supabase/schema.sql; database lama jalankan migrasi berurutan sampai 20261110_tahap6_secure_and_tables.sql.",
+    "2. Vercel: isi DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD (Secret); opsional GEMINI_API_KEY, SUPABASE_URL/ANON_KEY, VAPID_*.",
+    "3. Push ke repository yang terhubung ke Vercel; Node 24.x; Build Command npm run build; Output Directory kosong.",
+    "4. Uji /api/ping, login Author, order, pelacakan. Panduan lengkap: docs/README-VERCEL-DEPLOY.md"
+  ]
+}

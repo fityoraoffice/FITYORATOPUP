@@ -1,0 +1,6 @@
+tests
+docs
+scripts/generate-vapid-keys.mjs
+*.md
+!README.md
+.env*

@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+public/index.html
+public/_app/
+orders-db.json
+users-db.json
+admin-sessions.json
+member-sessions.json
+public/*.zip
+public/downloads/

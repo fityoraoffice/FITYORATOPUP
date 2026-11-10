@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+<title id="title">FITYORA Cyber Ice</title>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#10182b"/><stop offset=".6" stop-color="#070b16"/><stop offset="1" stop-color="#02040a"/></linearGradient>
+<linearGradient id="ice" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#baffff"/><stop offset=".45" stop-color="#28f3ff"/><stop offset="1" stop-color="#1688ff"/></linearGradient>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<clipPath id="round"><rect width="512" height="512" rx="112"/></clipPath>
+</defs>
+<g clip-path="url(#round)">
+<rect width="512" height="512" fill="url(#bg)"/>
+<circle cx="256" cy="256" r="184" fill="none" stroke="#2cecff" stroke-opacity=".1" stroke-width="2"/>
+<path d="M256 78 408 166 408 342 256 430 104 342 104 166Z" fill="none" stroke="#2cecff" stroke-opacity=".22" stroke-width="2"/>
+<path d="M68 118h48M92 94v48M394 388h50M419 363v50" stroke="#44f3ff" stroke-opacity=".3" stroke-width="2"/>
+<g filter="url(#glow)">
+<path d="M153 112H360L328 174H226V221H329L302 278H226V400H153Z" fill="url(#ice)"/>
+<path d="M226 112H360L328 174H226Z" fill="#fff" fill-opacity=".42"/>
+<path d="M226 221H329L302 278H226Z" fill="#fff" fill-opacity=".32"/>
+</g>
+<path d="M393 100 406 113 393 126 380 113Z" fill="#baffff"/>
+<path d="M115 374 125 384 115 394 105 384Z" fill="#22dfff"/>
+<circle cx="352" cy="291" r="4" fill="#fff"/>
+<rect x="1.5" y="1.5" width="509" height="509" rx="110.5" fill="none" stroke="#38efff" stroke-opacity=".5" stroke-width="3"/>
+</g></svg>
