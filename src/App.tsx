@@ -200,25 +200,6 @@ interface RecentQrScanEntry {
 const CUSTOM_CATALOG_KEY = 'cahyostore_custom_catalog_v13';
 const RECENT_QR_SCANS_KEY = 'cahyostore_recent_qr_scans_v1';
 
-const LIVE_TRANSACTION_FEED = [
-  { user: 'Budi S. (0812****781)', item: 'Weekly Diamond Pass Mobile Legends', time: 'Baru saja', icon: '💎', badge: 'Terverifikasi' },
-  { user: 'Ahmad R. (0857****239)', item: 'Token PLN Rp 50.000', time: '1 mnt lalu', icon: '⚡', badge: 'Terkirim' },
-  { user: 'Siti W. (0838****445)', item: 'Pulsa Axis 25.000 (PAXS25)', time: '2 mnt lalu', icon: '🟣', badge: 'Sukses' },
-  { user: 'Rian F. (0896****104)', item: '140 Diamonds Free Fire', time: '2 mnt lalu', icon: '🔥', badge: 'Sukses' },
-  { user: 'Dewi K. (0856****311)', item: 'Pulsa Indosat IM3 50.000 (PNDST50)', time: '3 mnt lalu', icon: '🟡', badge: 'Sukses' },
-  { user: 'Kevin D. (0813****892)', item: '321 CP Call of Duty Mobile', time: '3 mnt lalu', icon: '🎯', badge: 'Sukses' },
-  { user: 'Reza M. (0819****320)', item: '170 Diamonds Magic Chess Go Go', time: '4 mnt lalu', icon: '♟️', badge: 'Sukses' },
-  { user: 'Bayu P. (0821****618)', item: 'Pulsa Telkomsel 50.000 (PTSEL50)', time: '4 mnt lalu', icon: '🔴', badge: 'Sukses' },
-  { user: 'Hendra T. (0878****524)', item: 'Pulsa XL Axiata 100.000 (PTXLS100)', time: '5 mnt lalu', icon: '🔵', badge: 'Sukses' },
-  { user: 'Fajar N. (0895****732)', item: '240 Tokens Honor of Kings', time: '6 mnt lalu', icon: '👑', badge: 'Sukses' },
-  { user: 'Randi G. (0897****612)', item: 'Pulsa Tri (3) 25.000 (PTRI25)', time: '7 mnt lalu', icon: '📶', badge: 'Sukses' },
-  { user: 'Indra K. (0838****512)', item: '310 Goldstar Super Sus', time: '8 mnt lalu', icon: '🚀', badge: 'Sukses' },
-  { user: 'Taufik R. (0882****901)', item: 'Pulsa Smartfren 50.000 (PSMPN50)', time: '8 mnt lalu', icon: '🔴', badge: 'Sukses' },
-  { user: 'Aris T. (0877****609)', item: '500 Robux Roblox', time: '9 mnt lalu', icon: '🧱', badge: 'Sukses' },
-  { user: 'Dimas A. (0852****910)', item: '1.000 VP Valorant', time: '10 mnt lalu', icon: '⚔️', badge: 'Terkirim' },
-  { user: 'Yoga H. (0851****943)', item: '660 UC PUBG Mobile', time: '11 mnt lalu', icon: '🪂', badge: 'Sukses' }
-];
-
 export default function App() {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
@@ -371,15 +352,6 @@ export default function App() {
       }, 180);
     }, 280);
   };
-
-  // Live Real-Time Transaction Feed Index
-  const [liveTickerIdx, setLiveTickerIdx] = useState<number>(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setLiveTickerIdx((prev) => (prev + 1) % LIVE_TRANSACTION_FEED.length);
-    }, 3800);
-    return () => clearInterval(timer);
-  }, []);
 
   // Selected Checkout State
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -3298,37 +3270,9 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
           </div>
         </motion.section>
 
-        {/* Real-Time Live Order Ticker & Buyer Trust Counter */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-500/25 bg-slate-900/60 shadow-sm">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="flex h-2.5 w-2.5 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <div className="flex items-center gap-2 text-xs truncate">
-              <span className="font-black text-cyan-400 shrink-0 tracking-wide text-[11px]">LIVE TRANSAKSI:</span>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={liveTickerIdx}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.22 }}
-                  className="flex items-center gap-1.5 truncate text-slate-200"
-                >
-                  <span className="text-sm shrink-0">{LIVE_TRANSACTION_FEED[liveTickerIdx].icon}</span>
-                  <span className="font-bold text-white truncate">{LIVE_TRANSACTION_FEED[liveTickerIdx].user}</span>
-                  <span className="text-slate-400 truncate">sukses beli {LIVE_TRANSACTION_FEED[liveTickerIdx].item}</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                    {LIVE_TRANSACTION_FEED[liveTickerIdx].badge}
-                  </span>
-                  <span className="text-[10px] text-slate-500 shrink-0 hidden md:inline">({LIVE_TRANSACTION_FEED[liveTickerIdx].time})</span>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between sm:justify-end gap-3 text-[11px] font-bold text-slate-400 shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+        {/* Buyer Trust Counter */}
+        <div className="flex justify-center sm:justify-end p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-500/25 bg-slate-900/60 shadow-sm">
+          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] font-bold text-slate-400">
             <span className="flex items-center gap-1 text-slate-300">
               <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
               <span>1.480+ Order Sukses Hari Ini</span>
