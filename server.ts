@@ -33,6 +33,7 @@ import { checkDatabaseConnection } from './src/db/index.js';
 import { verifyTarget } from './src/utils/targetVerification.js';
 import { hitRateLimit } from './src/db/rateLimit.js';
 import { createMemoryLimiter } from './src/utils/rateLimit.js';
+import { OFFICIAL_AUTHOR_EMAIL, isKnownAuthorIdentifier } from './src/utils/authorIdentity.js';
 import { normalizeUniqueCode, calculateExpectedTotal, totalMatches } from './src/utils/orderPricing.js';
 import { savePushSubscription, removePushSubscription, listPushSubscriptions } from './src/db/push.js';
 import { loadVapidConfig, sendEmptyPush, isAllowedPushEndpoint } from './src/utils/webPush.js';
@@ -51,20 +52,15 @@ const HOST = process.env.HOST || cliHost || '0.0.0.0';
 const ORDERS_DB_PATH = path.join(process.cwd(), 'orders-db.json');
 const USERS_DB_PATH = path.join(process.cwd(), 'users-db.json');
 
-const OFFICIAL_AUTHOR_EMAIL = 'fityorastoreoffice@gmail.com';
 const PRIMARY_AUTHOR_EMAIL = String(process.env.ADMIN_EMAIL || OFFICIAL_AUTHOR_EMAIL).trim().toLowerCase();
-const AUTHOR_EMAIL = PRIMARY_AUTHOR_EMAIL;
 const AUTHOR_EMAILS = Array.from(new Set([
   OFFICIAL_AUTHOR_EMAIL,
   PRIMARY_AUTHOR_EMAIL,
   ...String(process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()),
 ].filter(Boolean)));
-const AUTHOR_PHONES: string[] = [];
-const AUTHOR_USERNAMES: string[] = [];
 
 function isAuthorMatch(identifierRaw: unknown): boolean {
-  const raw = String(identifierRaw || '').trim().toLowerCase();
-  return Boolean(raw && AUTHOR_EMAILS.includes(raw));
+  return isKnownAuthorIdentifier(identifierRaw, AUTHOR_EMAILS);
 }
 
 function isAuthorPasswordMatch(passwordRaw: unknown): boolean {
@@ -694,7 +690,7 @@ async function createApp() {
       return;
     }
     const identifier = String(req.body?.identifier || req.body?.email || req.body?.username || '').trim().toLowerCase();
-    const password = String(req.body?.password || '').trim();
+    const password = String(req.body?.password ?? '');
 
     const authorIdMatch = isAuthorMatch(identifier);
     const authorPassMatch = isAuthorPasswordMatch(password);
@@ -1386,6 +1382,44 @@ async function createApp() {
       return;
     }
 
+    const targetsToVerify = Array.from(new Map(
+      validatedLines.map((line) => [JSON.stringify([line.productId, line.userId, line.zoneId || '']), line] as const)
+    ).values());
+    const allowedVerifications = await Promise.all(targetsToVerify.map(() =>
+      allowRateLimitedRequest(`verify-target:${ip}`, 60, 10 * 60 * 1000)
+    ));
+    if (allowedVerifications.some((allowed) => !allowed)) {
+      res.status(429).json({ error: 'Terlalu banyak pemeriksaan ID. Coba lagi beberapa menit lagi.' });
+      return;
+    }
+
+    let targetResults;
+    try {
+      targetResults = await Promise.all(targetsToVerify.map((line) => {
+        const product = catalogProducts.find((candidate) => candidate.id === line.productId)!;
+        return verifyTarget({
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          idLabel: product.idLabel,
+          userId: line.userId,
+          zoneId: line.zoneId,
+          hasZoneId: product.hasZoneId,
+        });
+      }));
+    } catch (error) {
+      console.error('[VerifyTarget] Order verification failed:', error);
+      res.status(503).json({ error: 'Penyedia verifikasi tujuan tidak dapat dihubungi. Pesanan belum dibuat.' });
+      return;
+    }
+    const unconfirmedTarget = targetResults.find((result) => !result.valid || result.level !== 'confirmed');
+    if (unconfirmedTarget) {
+      res.status(422).json({
+        error: `Tujuan belum terkonfirmasi online (${unconfirmedTarget.provider}). Pesanan diblokir untuk mencegah salah kirim.`,
+      });
+      return;
+    }
+
     const record: ServerOrderRecord = {
       id,
       product: expectedProduct,
@@ -1612,7 +1646,7 @@ async function createApp() {
       return;
     }
     const cleanPhone = cleanWa.replace(/[\s-]/g, '');
-    if (isAuthorMatch(cleanEmail) || AUTHOR_PHONES.includes(cleanPhone) || body.isAuthor) {
+    if (isAuthorMatch(cleanEmail) || isAuthorMatch(cleanPhone) || body.isAuthor) {
       res.status(403).json({ error: 'Akun admin tidak dapat dibuat melalui pendaftaran member.' });
       return;
     }
@@ -1675,7 +1709,7 @@ async function createApp() {
   app.post('/api/users/login', async (req, res) => {
     const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
     const identifier = String(req.body?.identifier || '').trim().toLowerCase();
-    const password = String(req.body?.password || '').trim();
+    const password = String(req.body?.password ?? '');
     if (!identifier || !password || password.length > 1024) {
       res.status(400).json({ error: 'Email/nomor WhatsApp dan kata sandi wajib diisi.' });
       return;

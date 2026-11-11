@@ -20,6 +20,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { ADMIN_WHATSAPP_NUMBER } from '../data/catalog';
+import { OFFICIAL_AUTHOR_EMAIL, isKnownAuthorIdentifier } from '../utils/authorIdentity';
 
 export interface MemberUser {
   id: string;
@@ -31,24 +32,10 @@ export interface MemberUser {
   isAuthor?: boolean;
 }
 
-const AUTHOR_EMAIL = 'fityorastoreoffice@gmail.com';
-const AUTHOR_EMAILS = ['fityorastoreoffice@gmail.com'];
-const AUTHOR_PHONES = ['08139525985', '628139525985', '+628139525985'];
-const AUTHOR_USERNAMES = ['cahyo', 'cahyostore', 'admin', 'author', 'fityora', 'fityorastore'];
+const AUTHOR_EMAIL = OFFICIAL_AUTHOR_EMAIL;
 
 export function isAuthorIdString(val: string): boolean {
-  const raw = String(val || '').trim().toLowerCase();
-  if (!raw) return false;
-  if (AUTHOR_EMAILS.includes(raw) || raw === AUTHOR_EMAIL) return true;
-  if (AUTHOR_USERNAMES.includes(raw)) return true;
-  const cleanPhone = raw.replace(/[\s-]/g, '');
-  const norm08 = cleanPhone.replace(/^(\+62|62)/, '0');
-  const norm62 = cleanPhone.replace(/^(\+62|0)/, '62');
-  return (
-    AUTHOR_PHONES.includes(cleanPhone) ||
-    AUTHOR_PHONES.includes(norm08) ||
-    AUTHOR_PHONES.includes(norm62)
-  );
+  return isKnownAuthorIdentifier(val);
 }
 
 export function isAuthorAccount(user: MemberUser | null): boolean {
@@ -323,7 +310,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     const cleanPhone = cleanWa.replace(/[\s-]/g, '');
-    const authorFlag = cleanEmail === AUTHOR_EMAIL || AUTHOR_PHONES.includes(cleanPhone);
+    const authorFlag = isAuthorIdString(cleanEmail) || isAuthorIdString(cleanPhone);
 
     if (authorFlag) {
       showToast(
@@ -373,8 +360,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const identifier = email.trim().toLowerCase();
-    const pass = password.trim();
-    if (!identifier || !pass) {
+    const pass = password;
+    if (!identifier || !pass.trim()) {
       showToast('Masukkan Email / No. WA dan Kata Sandi!', 'error');
       return;
     }

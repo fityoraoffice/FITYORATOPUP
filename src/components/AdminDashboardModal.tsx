@@ -70,12 +70,12 @@ import { AdminAnalyticsDashboard } from './AdminAnalyticsDashboard';
 import {
   MemberUser,
   isAuthorAccount,
-  isAuthorIdString,
   syncUsersWithServerDb,
   getStoredUsers,
   saveStoredUsers,
   saveSessionUser
 } from './AuthModal';
+import { OFFICIAL_AUTHOR_EMAIL } from '../utils/authorIdentity';
 import { canLoadImage } from '../utils/imageResolver';
 import { playAdminIncomingOrderAlarm } from '../utils/soundEffects';
 import { PaymentMethodLogo } from './PaymentMethodLogo';
@@ -187,11 +187,6 @@ interface AdminDashboardModalProps {
   initialTab?: 'analytics' | 'theme' | 'studio' | 'orders' | 'streaming' | 'catalog' | 'members' | 'zip';
 }
 
-const OFFICIAL_AUTHOR_EMAIL = 'fityorastoreoffice@gmail.com';
-const OFFICIAL_AUTHOR_EMAILS = ['fityorastoreoffice@gmail.com'];
-const OFFICIAL_AUTHOR_PHONES = ['08139525985', '628139525985', '+628139525985'];
-const OFFICIAL_AUTHOR_USERNAMES = ['cahyo', 'cahyostore', 'admin', 'author', 'fityora', 'fityorastore'];
-
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   isOpen,
   onClose,
@@ -245,9 +240,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const executeAuthorLogin = async (targetId?: string, targetPass?: string) => {
     const rawId = (targetId ?? authorLoginId).trim();
     const idf = rawId ? rawId.toLowerCase() : '';
-    const pass = (targetPass ?? authorLoginPass).trim();
+    const pass = targetPass ?? authorLoginPass;
 
-    if (!idf || !pass) {
+    if (!idf || !pass.trim()) {
       showToast('Masukkan ID/Email dan Kata Sandi Author terlebih dahulu!', 'error');
       return;
     }

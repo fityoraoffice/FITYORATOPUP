@@ -387,8 +387,6 @@ export default function App() {
     verifiedAt?: string;
     message?: string;
   }>({ status: 'idle' });
-  // Pembeli wajib mencentang bila nama akun tidak bisa dikonfirmasi otomatis (mencegah salah ID).
-  const [targetDoubleChecked, setTargetDoubleChecked] = useState<boolean>(false);
   const [pasteBubbleInfo, setPasteBubbleInfo] = useState<{
     field: 'user' | 'zone';
     charCount: number;
@@ -1384,11 +1382,6 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [selectedProduct?.id, userId, zoneId]);
-
-  // Centang konfirmasi hilang tiap kali ID/produk berubah.
-  useEffect(() => {
-    setTargetDoubleChecked(false);
   }, [selectedProduct?.id, userId, zoneId]);
 
   // Real-time friendly diagnostic helper that returns a clean error hint based on the game/product ID format
@@ -2576,29 +2569,20 @@ export default function App() {
       return;
     }
 
-    if (liveTargetAuth.status === 'unconfirmed' && !targetDoubleChecked) {
+    if (liveTargetAuth.status !== 'verified') {
       triggerUserIdShake();
-      showToast(`Nama akun belum bisa dikonfirmasi otomatis. Periksa ${selectedProduct.idLabel} Anda lalu centang "Saya sudah memeriksa" sebelum lanjut.`, 'error');
+      const message = liveTargetAuth.status === 'checking'
+        ? 'Pemeriksaan ID masih berlangsung. Tunggu sampai selesai sebelum melanjutkan.'
+        : liveTargetAuth.status === 'invalid'
+          ? `${selectedProduct.idLabel} tidak ditemukan atau tidak valid.`
+          : 'Tujuan belum dikonfirmasi oleh penyedia online. Pesanan diblokir untuk mencegah salah kirim.';
+      showToast(message, 'error');
       userIdInputRef.current?.focus();
       return;
     }
 
     if (!selectedItem) {
       showToast('Pilih nominal item terlebih dahulu!', 'error');
-      return;
-    }
-
-    if (liveTargetAuth.status === 'invalid') {
-      triggerUserIdShake();
-      showToast(`${selectedProduct.idLabel} tidak ditemukan. Periksa kembali sebelum masuk troli.`, 'error');
-      userIdInputRef.current?.focus();
-      return;
-    }
-
-    if (liveTargetAuth.status === 'unconfirmed' && !targetDoubleChecked) {
-      triggerUserIdShake();
-      showToast(`Nama akun belum bisa dikonfirmasi otomatis. Periksa ${selectedProduct.idLabel} Anda lalu centang "Saya sudah memeriksa" sebelum masuk troli.`, 'error');
-      userIdInputRef.current?.focus();
       return;
     }
 
@@ -5293,7 +5277,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                         <div className="min-w-0">
                           {liveTargetAuth.status === 'checking' && (
                             <p className="font-bold text-cyan-300 text-[11px]">
-                              Memeriksa format {selectedProduct.idLabel} dan mencoba lookup resmi...
+                              Memeriksa {selectedProduct.idLabel} melalui penyedia online...
                             </p>
                           )}
                           {liveTargetAuth.status === 'verified' && (
@@ -5320,17 +5304,9 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                 <span className="font-extrabold text-white text-xs break-all">{liveTargetAuth.accountName}</span>
                               </div>
                               <p className="text-[10px] text-amber-200/90 mt-0.5">{liveTargetAuth.regionOrInfo}</p>
-                              <label className="mt-2 flex items-start gap-2 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={targetDoubleChecked}
-                                  onChange={(e) => setTargetDoubleChecked(e.target.checked)}
-                                  className="mt-0.5 w-4 h-4 accent-amber-400 shrink-0"
-                                />
-                                <span className="text-[11px] font-bold text-amber-100">
-                                  Saya sudah memeriksa, ID/nomor di atas sudah benar. Salah ID tidak dapat dibatalkan.
-                                </span>
-                              </label>
+                              <p className="text-[11px] font-bold text-amber-100 mt-2">
+                                Pesanan tidak dapat dilanjutkan sampai penyedia online mengonfirmasi tujuan ini.
+                              </p>
                             </>
                           )}
                           {liveTargetAuth.status === 'invalid' && (
