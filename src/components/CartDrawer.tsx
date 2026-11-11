@@ -198,7 +198,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 w-full max-w-md glass-panel border-l border-white/10 h-full flex flex-col justify-between overflow-hidden"
+            className="fy-cart-shell relative z-10 w-full max-w-md glass-panel border-l border-white/10 h-full flex flex-col justify-between overflow-hidden"
           >
             {/* Drawer Header */}
             <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between bg-slate-950/60">

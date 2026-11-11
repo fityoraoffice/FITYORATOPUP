@@ -30,7 +30,7 @@ import {
   deleteDbSession,
 } from './src/db/users.js';
 import { checkDatabaseConnection } from './src/db/index.js';
-import { verifyTarget } from './src/utils/targetVerification.js';
+import { verifyTarget, isTargetAcceptable } from './src/utils/targetVerification.js';
 import { hitRateLimit } from './src/db/rateLimit.js';
 import { createMemoryLimiter } from './src/utils/rateLimit.js';
 import { OFFICIAL_AUTHOR_EMAIL, isKnownAuthorIdentifier } from './src/utils/authorIdentity.js';
@@ -88,6 +88,7 @@ interface ServerOrderRecord {
   createdAt?: string;
   paymentStatus?: 'pending' | 'verified';
   fulfillmentStatus?: 'pending' | 'processing' | 'shipped';
+  targetVerificationLevel?: 'confirmed' | 'format_only';
   verifiedAt?: string;
   shippedAt?: string;
   auditLog?: Array<{ action: string; at: string; by: string }>;
@@ -526,6 +527,7 @@ function safePublicOrder(order: ServerOrderRecord) {
     createdAt: order.createdAt,
     paymentStatus: order.paymentStatus || 'pending',
     fulfillmentStatus: order.fulfillmentStatus || 'pending',
+    targetVerificationLevel: order.targetVerificationLevel,
     verifiedAt: order.verifiedAt,
     shippedAt: order.shippedAt
   };
@@ -1043,7 +1045,7 @@ async function createApp() {
       `WhatsApp: 08139525985\n\n` +
       `STATUS SISTEM:\n` +
       `- Kode sumber 100% tersinkronisasi otomatis dengan pembaruan dan perbaikan terkini.\n` +
-      `- QRIS Standar Nasional ASPI Resmi aktif.\n` +
+      `- QRIS statis GoPay Merchant; konfirmasi pembayaran dilakukan manual oleh Author.\n` +
       `- Manajemen sesi tersimpan di Supabase PostgreSQL (token disimpan dalam bentuk hash).\n` +
       `- Navigasi mobile responsif dan teroptimasi rapi.\n\n` +
       `CARA MENJALANKAN:\n` +
@@ -1180,6 +1182,11 @@ async function createApp() {
       res.status(400).json({ error: 'Format ID pesanan tidak valid.' });
       return;
     }
+    const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+    if (!(await allowRateLimitedRequest(`track-order:${ip}`, 600, 10 * 60 * 1000))) {
+      res.status(429).json({ error: 'Terlalu banyak pemeriksaan pesanan. Coba lagi beberapa menit.' });
+      return;
+    }
     let found: ServerOrderRecord | null = null;
     try { found = await getDbOrderById(id) as ServerOrderRecord | null; }
     catch { res.status(503).json({ error: 'Database sedang tidak dapat diakses. Coba lagi sebentar.' }); return; }
@@ -1284,7 +1291,7 @@ async function createApp() {
       return;
     }
     if (paymentMethod.isMaintenance) {
-      res.status(400).json({ error: 'Metode pembayaran ini sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS All Payment (Biaya Rp 300) atau E-Wallet (Biaya Rp 500).' });
+      res.status(400).json({ error: 'Metode pembayaran ini belum tersedia. Silakan gunakan QRIS All Payment resmi CAHYO STORE.' });
       return;
     }
 
@@ -1412,10 +1419,10 @@ async function createApp() {
       res.status(503).json({ error: 'Penyedia verifikasi tujuan tidak dapat dihubungi. Pesanan belum dibuat.' });
       return;
     }
-    const unconfirmedTarget = targetResults.find((result) => !result.valid || result.level !== 'confirmed');
-    if (unconfirmedTarget) {
+    const invalidTarget = targetResults.find((result) => !isTargetAcceptable(result));
+    if (invalidTarget) {
       res.status(422).json({
-        error: `Tujuan belum terkonfirmasi online (${unconfirmedTarget.provider}). Pesanan diblokir untuk mencegah salah kirim.`,
+        error: `Tujuan tidak valid menurut pemeriksaan (${invalidTarget.provider}). Periksa kembali ID/nomor tujuan.`,
       });
       return;
     }
@@ -1438,7 +1445,8 @@ async function createApp() {
       createdAt: new Date().toISOString(),
       paymentStatus: 'pending',
       fulfillmentStatus: 'pending',
-      auditLog: [{ action: 'order_created', at: new Date().toISOString(), by: 'customer' }]
+      targetVerificationLevel: targetResults.some((result) => result.level === 'format_only') ? 'format_only' : 'confirmed',
+      auditLog: [{ action: targetResults.some((result) => result.level === 'format_only') ? 'order_created_target_format_only' : 'order_created', at: new Date().toISOString(), by: 'customer' }]
     };
     try {
       const inserted = await createDbOrder({
@@ -1715,8 +1723,12 @@ async function createApp() {
       return;
     }
 
-    // Direct gateway for Author logging in via Member Login Modal
+    // Author login from the member modal shares the same server-side limit as /api/admin/login.
     if (isAuthorMatch(identifier)) {
+      if (!(await allowRateLimitedRequest(`admin-login:${ip}`, 10, 10 * 60 * 1000))) {
+        res.status(429).json({ error: 'Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.' });
+        return;
+      }
       if (isAuthorPasswordMatch(password)) {
         const sessionEmail = identifier.includes('@') ? identifier : PRIMARY_AUTHOR_EMAIL;
         const sessionId = randomBytes(32).toString('hex');

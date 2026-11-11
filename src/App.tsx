@@ -111,6 +111,8 @@ import {
   refreshCurrentMemberProfile
 } from './components/AuthModal';
 import { PaymentMethodLogo } from './components/PaymentMethodLogo';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { generateOrderId } from './utils/orderId';
 import { CustomerReviews } from './components/CustomerReviews';
 import { ReviewForm } from './components/ReviewForm';
 import { generateHtmlEmailReceipt, type CompletedOrderReceipt } from './utils/receiptHtml';
@@ -1829,7 +1831,7 @@ export default function App() {
   const getPaymentInstructionText = (pay: PaymentMethod): string => {
     const id = pay.id.toLowerCase();
     if (id === 'qris') {
-      return 'Scan QRIS All Payment (BCA, DANA, GoPay, OVO, ShopeePay) melalui aplikasi pembayaran Anda. Masukkan nominal tepat sesuai total tagihan agar pesanan langsung diproses.';
+      return 'Scan QRIS statis resmi CAHYO STORE melalui aplikasi pembayaran Anda dan masukkan nominal tepat sesuai total tagihan. Pembayaran tidak terverifikasi otomatis; pesanan baru diproses setelah Author memeriksa transaksi di GoPay Merchant.';
     }
     if (id === 'gopay') {
       return 'Transfer saldo GoPay ke nomor HP: 0813-9525-985 (a/n CAHYO). Masukkan nominal pas sesuai total tagihan.';
@@ -2651,7 +2653,7 @@ export default function App() {
       return;
     }
     if (selectedPayment.isMaintenance) {
-      showToast(`Metode pembayaran ${selectedPayment.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS atau E-Wallet!`, 'error');
+      showToast(`Metode pembayaran ${selectedPayment.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS All Payment.`, 'error');
       return;
     }
     const cleanWa = whatsappNumber.trim();
@@ -2667,10 +2669,8 @@ export default function App() {
 
     setSubmitting(true);
 
-    let orderId = '';
-    do {
-      orderId = 'CS-' + Math.floor(100000 + Math.random() * 900000);
-    } while (localStorage.getItem(orderId));
+    let orderId = generateOrderId();
+    while (localStorage.getItem(orderId)) orderId = generateOrderId();
 
     const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
     // Strict 200-400 unique code range
@@ -2868,7 +2868,7 @@ ${itemsLines}
     }
 
     if (selectedPayment.isMaintenance) {
-      showToast(`Metode pembayaran ${selectedPayment.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS atau E-Wallet!`, 'error');
+      showToast(`Metode pembayaran ${selectedPayment.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS All Payment.`, 'error');
       return;
     }
 
@@ -2883,10 +2883,8 @@ ${itemsLines}
       return;
     }
 
-    let generatedOrderId = '';
-    do {
-      generatedOrderId = 'CS-' + Math.floor(100000 + Math.random() * 900000);
-    } while (localStorage.getItem(generatedOrderId));
+    let generatedOrderId = generateOrderId();
+    while (localStorage.getItem(generatedOrderId)) generatedOrderId = generateOrderId();
 
     const nowMs = Date.now();
     const createdAtFormatted =
@@ -3099,7 +3097,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
   ];
 
   return (
-    <div className="min-h-screen flex flex-col justify-between antialiased selection:bg-cyan-500 selection:text-black relative">
+    <div className="fy-storefront min-h-screen flex flex-col justify-between antialiased selection:bg-cyan-500 selection:text-black relative">
       {/* Top Animated Progress Bar for Category Switch & Search */}
       <div className="fixed top-0 left-0 right-0 z-50 h-1 pointer-events-none overflow-hidden">
         <div
@@ -3111,6 +3109,8 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
           }}
         />
       </div>
+
+      <PWAInstallBanner />
 
       {/* Header Navigation */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/5">
@@ -5305,7 +5305,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                               </div>
                               <p className="text-[10px] text-amber-200/90 mt-0.5">{liveTargetAuth.regionOrInfo}</p>
                               <p className="text-[11px] font-bold text-amber-100 mt-2">
-                                Pesanan tidak dapat dilanjutkan sampai penyedia online mengonfirmasi tujuan ini.
+                                Nama tujuan belum dapat dikonfirmasi otomatis. Cocokkan kembali ID di game/aplikasi sebelum membayar.
                               </p>
                             </>
                           )}
@@ -5441,7 +5441,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                           }}
                           onClick={() => {
                             if (isMaint) {
-                              showToast(`Metode pembayaran ${pay.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS atau E-Wallet!`, 'info');
+                              showToast(`Metode pembayaran ${pay.name} sedang dalam pemeliharaan (Maintenance). Silakan pilih QRIS All Payment.`, 'info');
                               return;
                             }
                             setSelectedPayment(pay);

@@ -475,7 +475,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 glass-panel max-w-md w-full p-6 rounded-3xl border border-cyan-500/30 space-y-5 max-h-[90vh] overflow-y-auto"
+            className="fy-auth-shell relative z-10 glass-panel max-w-md w-full p-6 rounded-3xl border border-cyan-500/30 space-y-5 max-h-[90vh] overflow-y-auto"
           >
             <button
               onClick={onClose}

@@ -27,6 +27,11 @@ export interface TargetResult {
   message?: string;
 }
 
+/** Format-only means the syntax passed, but the account owner was not confirmed online. */
+export function isTargetAcceptable(result: Pick<TargetResult, 'valid' | 'level'>): boolean {
+  return result.valid && result.level !== 'invalid';
+}
+
 const GAME_NICKNAME_SLUGS: Record<string, string> = {
   mlbb: 'ml',
   magicchess: 'ml',

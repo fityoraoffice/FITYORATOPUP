@@ -400,3 +400,121 @@ img {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* FITYORASTORE_PHASE4_PROFESSIONAL_UI */
+/* Clear, calm, high-trust storefront and dashboard polish. Scoped to avoid logic changes. */
+.fy-storefront {
+  --fy-surface: rgba(15, 23, 42, 0.76);
+  --fy-surface-raised: rgba(20, 30, 50, 0.9);
+  --fy-line: rgba(148, 163, 184, 0.16);
+  --fy-focus: rgba(34, 211, 238, 0.22);
+  background:
+    radial-gradient(ellipse at 8% 0%, rgba(8, 145, 178, 0.10), transparent 34rem),
+    radial-gradient(ellipse at 92% 18%, rgba(109, 40, 217, 0.09), transparent 32rem),
+    #070b16;
+}
+.fy-storefront :where(button, a, input, select, textarea) {
+  -webkit-tap-highlight-color: transparent;
+}
+.fy-storefront :where(input, select, textarea),
+.fy-auth-shell :where(input, select, textarea),
+.fy-cart-shell :where(input, select, textarea),
+.fy-admin-shell :where(input, select, textarea) {
+  min-height: 44px;
+  border-radius: 12px;
+}
+.fy-storefront :where(input, select, textarea):focus-visible,
+.fy-auth-shell :where(input, select, textarea):focus-visible,
+.fy-cart-shell :where(input, select, textarea):focus-visible,
+.fy-admin-shell :where(input, select, textarea):focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--fy-focus, rgba(34, 211, 238, 0.18));
+}
+.fy-storefront :where(button, a),
+.fy-admin-shell :where(button),
+.fy-cart-shell :where(button),
+.fy-auth-shell :where(button) {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: ease-out;
+}
+.fy-product-grid-layout {
+  align-items: stretch;
+}
+.fy-product-card {
+  min-width: 0;
+  border-color: var(--fy-line);
+  background: linear-gradient(165deg, rgba(21, 32, 53, 0.96), rgba(10, 17, 31, 0.96));
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.14);
+}
+.fy-product-card:active {
+  transform: scale(0.985);
+}
+@media (hover: hover) and (pointer: fine) {
+  .fy-product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(34, 211, 238, 0.2);
+  }
+}
+.fy-admin-shell {
+  max-height: min(94dvh, 980px);
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+.fy-admin-shell > :where(div) {
+  min-width: 0;
+}
+.fy-admin-main {
+  min-height: 0;
+}
+.fy-admin-shell :where(input, select, textarea) {
+  width: 100%;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+.fy-admin-shell :where(button):focus-visible,
+.fy-cart-shell :where(button):focus-visible,
+.fy-auth-shell :where(button):focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+.fy-admin-shell :where([class*="overflow-x-auto"]) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+.fy-cart-shell {
+  border-left-color: rgba(148, 163, 184, 0.22);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.32);
+}
+.fy-auth-shell {
+  border-color: rgba(34, 211, 238, 0.24);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+@media (max-width: 640px) {
+  .fy-admin-shell {
+    width: 100%;
+    max-height: calc(100dvh - 12px);
+    border-radius: 18px;
+  }
+  .fy-admin-shell input,
+  .fy-admin-shell select,
+  .fy-admin-shell textarea {
+    font-size: 16px;
+  }
+  .fy-product-card {
+    padding: 8px;
+    border-radius: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fy-storefront *,
+  .fy-admin-shell *,
+  .fy-cart-shell *,
+  .fy-auth-shell * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

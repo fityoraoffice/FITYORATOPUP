@@ -1673,7 +1673,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            className="relative z-10 glass-panel backdrop-blur-2xl bg-slate-950/85 w-full max-w-6xl max-h-[92vh] rounded-3xl border border-cyan-400/30 shadow-[0_16px_48px_rgba(0,0,0,0.85),0_0_35px_rgba(0,240,255,0.18)] ring-1 ring-white/10 flex flex-col overflow-hidden"
+            className="fy-admin-shell relative z-10 glass-panel backdrop-blur-2xl bg-slate-950/85 w-full max-w-6xl max-h-[92vh] rounded-3xl border border-cyan-400/30 shadow-[0_16px_48px_rgba(0,0,0,0.85),0_0_35px_rgba(0,240,255,0.18)] ring-1 ring-white/10 flex flex-col overflow-hidden"
           >
             {/* Modal Header with Frosted Glassmorphism */}
             <div className="px-5 py-4 border-b border-white/10 bg-slate-950/75 backdrop-blur-xl flex flex-wrap items-center justify-between gap-3">
@@ -1873,7 +1873,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               </div>
             ) : (
               /* Unlocked Admin Dashboard for Verified Author - Modern Full-Width Tab-Based Layout */
-              <div className="flex flex-col flex-1 overflow-hidden bg-slate-950/40 backdrop-blur-md w-full">
+              <div className="fy-admin-main flex flex-col flex-1 overflow-hidden bg-slate-950/40 backdrop-blur-md w-full">
                 {/* Modern Horizontal Tab Navigation Bar with frosted glass effect */}
                 <div className="w-full border-b border-white/10 bg-slate-950/70 backdrop-blur-xl px-3 sm:px-5 py-2.5 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar shrink-0 shadow-sm z-20">
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

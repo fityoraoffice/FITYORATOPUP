@@ -853,16 +853,16 @@ export const INITIAL_PRODUCTS_DATA: Product[] = [
 ];
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
-  { id: 'qris', name: 'QRIS All Payment (BCA, DANA, GoPay, OVO, ShopeePay)', group: 'QRIS Instant', fee: 0, badge: 'Instan' },
-  { id: 'gopay', name: 'GoPay (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Otomatis' },
-  { id: 'dana', name: 'DANA (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Otomatis' },
-  { id: 'ovo', name: 'OVO (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Otomatis' },
-  { id: 'shopeepay', name: 'ShopeePay (Transfer No. HP)', group: 'E-Wallet', fee: 0, badge: 'Otomatis' },
-  { id: 'seabank', name: 'SeaBank (Transfer Bank Digital)', group: 'Bank Transfer', fee: 0, badge: '24 Jam' },
-  { id: 'bca_va', name: 'BCA Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Maintenance', isMaintenance: true },
-  { id: 'bri_va', name: 'BRI Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Maintenance', isMaintenance: true },
-  { id: 'mandiri_va', name: 'Mandiri Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Maintenance', isMaintenance: true },
-  { id: 'bni_va', name: 'BNI Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Maintenance', isMaintenance: true }
+  { id: 'qris', name: 'QRIS All Payment (BCA, DANA, GoPay, OVO, ShopeePay)', group: 'QRIS Manual', fee: 0, badge: 'Diperiksa Admin' },
+  { id: 'gopay', name: 'GoPay (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'dana', name: 'DANA (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'ovo', name: 'OVO (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'shopeepay', name: 'ShopeePay (Transfer No. HP)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'seabank', name: 'SeaBank (Transfer Bank Digital)', group: 'Bank Transfer', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'bca_va', name: 'BCA Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'bri_va', name: 'BRI Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'mandiri_va', name: 'Mandiri Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'bni_va', name: 'BNI Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true }
 ];
 
 export const ADMIN_WHATSAPP_NUMBER = '628139525985';

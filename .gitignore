@@ -14,3 +14,6 @@ admin-sessions.json
 member-sessions.json
 public/*.zip
 public/downloads/
+.patch-backups/
+patch-backups/
+PHASE*-*.py
