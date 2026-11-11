@@ -3270,20 +3270,6 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
           </div>
         </motion.section>
 
-        {/* Buyer Trust Counter */}
-        <div className="flex justify-center sm:justify-end p-3 sm:px-4 rounded-2xl glass-panel border border-cyan-500/25 bg-slate-900/60 shadow-sm">
-          <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] font-bold text-slate-400">
-            <span className="flex items-center gap-1 text-slate-300">
-              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
-              <span>1.480+ Order Sukses Hari Ini</span>
-            </span>
-            <span className="flex items-center gap-1 text-emerald-400">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Garansi 100% Legal</span>
-            </span>
-          </div>
-        </div>
-
         {/* Assistant remains available */}
         {aiWidgetReady && (
           <Suspense fallback={null}>
