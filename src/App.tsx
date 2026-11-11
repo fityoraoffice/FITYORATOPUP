@@ -1333,7 +1333,8 @@ export default function App() {
             idLabel: selectedProduct.idLabel,
             userId: cleanU,
             zoneId: cleanZ,
-            hasZoneId: selectedProduct.hasZoneId
+            hasZoneId: selectedProduct.hasZoneId,
+            itemId: selectedProduct.id === 'ewallet' ? selectedItem?.id : undefined
           })
         });
         if (cancelled) return;
@@ -1384,7 +1385,7 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [selectedProduct?.id, userId, zoneId]);
+  }, [selectedProduct?.id, selectedProduct?.id === 'ewallet' ? selectedItem?.id : undefined, userId, zoneId]);
 
   // Real-time friendly diagnostic helper that returns a clean error hint based on the game/product ID format
   const getSpecificUserIdErrorHint = (prod: Product | null, val: string): string => {
@@ -2565,21 +2566,30 @@ export default function App() {
       return;
     }
 
-    if (liveTargetAuth.status !== 'verified') {
-      triggerUserIdShake();
-      const message = liveTargetAuth.status === 'checking'
-        ? 'Pemeriksaan ID masih berlangsung. Tunggu sampai selesai sebelum melanjutkan.'
-        : liveTargetAuth.status === 'invalid'
-          ? `${selectedProduct.idLabel} tidak ditemukan atau tidak valid.`
-          : 'Tujuan belum dikonfirmasi oleh penyedia online. Pesanan diblokir untuk mencegah salah kirim.';
-      showToast(message, 'error');
-      userIdInputRef.current?.focus();
-      return;
-    }
-
     if (!selectedItem) {
       showToast('Pilih nominal item terlebih dahulu!', 'error');
       return;
+    }
+
+    if (liveTargetAuth.status !== 'verified') {
+      if (selectedProduct.id === 'ewallet' && liveTargetAuth.status === 'unconfirmed') {
+        const manualConfirmed = window.confirm('Nama penerima belum dapat dipastikan oleh layanan online. Periksa nama dan nomor tujuan langsung di aplikasi e-wallet sebelum lanjut. Apakah kamu sudah mencocokkannya?');
+        if (!manualConfirmed) {
+          triggerUserIdShake();
+          userIdInputRef.current?.focus();
+          return;
+        }
+      } else {
+        triggerUserIdShake();
+        const message = liveTargetAuth.status === 'checking'
+          ? 'Pemeriksaan ID masih berlangsung. Tunggu sampai selesai sebelum melanjutkan.'
+          : liveTargetAuth.status === 'invalid'
+            ? `${selectedProduct.idLabel} tidak ditemukan atau tidak valid.`
+            : 'Tujuan belum dikonfirmasi oleh penyedia online. Pesanan diblokir untuk mencegah salah kirim.';
+        showToast(message, 'error');
+        userIdInputRef.current?.focus();
+        return;
+      }
     }
 
     const key = `${selectedProduct.id}-${selectedItem.id}-${cleanUserId}-${cleanZoneId}`;
@@ -5319,8 +5329,9 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                   )}
 
                   <p className="text-[11px] text-slate-400 italic" id="input-help-text">
-                    *Pastikan User ID &amp; Server ID diisi dengan benar untuk menghindari kesalahan
-                    pengiriman.
+                    {selectedProduct.id === 'ewallet'
+                      ? 'Untuk cek nama, nomor e-wallet yang kamu masukkan akan dikirim ke layanan verifikasi pihak ketiga. Periksa hanya nomor tujuan yang kamu berwenang gunakan dan cocokkan nama penerima di aplikasi.'
+                      : '*Pastikan User ID & Server ID diisi dengan benar untuk menghindari kesalahan pengiriman.'}
                   </p>
                 </div>
 

@@ -1341,8 +1341,8 @@ async function createApp() {
       expectedItem = `${totalCount} Voucher`;
       expectedTarget = validatedLines.map((line) => `${line.userId}${line.zoneId ? `(${line.zoneId})` : ''}`).join(', ');
     } else {
-      const productId = limited(body.productId, 100, '');
-      const itemId = limited(body.itemId, 100, '');
+      const productId = String(body.productId ?? '').trim().slice(0, 100);
+      const itemId = String(body.itemId ?? '').trim().slice(0, 100);
       const product = catalogProducts.find((candidate) => candidate.id === productId);
       const item = product?.items.find((candidate) => candidate.id === itemId);
       if (item && item.price <= 0) {
@@ -1390,7 +1390,7 @@ async function createApp() {
     }
 
     const targetsToVerify = Array.from(new Map(
-      validatedLines.map((line) => [JSON.stringify([line.productId, line.userId, line.zoneId || '']), line] as const)
+      validatedLines.map((line) => [JSON.stringify([line.productId, line.productId === 'ewallet' ? line.itemId : '', line.userId, line.zoneId || '']), line] as const)
     ).values());
     const allowedVerifications = await Promise.all(targetsToVerify.map(() =>
       allowRateLimitedRequest(`verify-target:${ip}`, 60, 10 * 60 * 1000)
@@ -1399,11 +1399,20 @@ async function createApp() {
       res.status(429).json({ error: 'Terlalu banyak pemeriksaan ID. Coba lagi beberapa menit lagi.' });
       return;
     }
+    const ewalletTargets = targetsToVerify.filter((line) => line.productId === 'ewallet');
+    const allowedEwalletChecks = await Promise.all(ewalletTargets.map(() =>
+      allowRateLimitedRequest(`verify-ewallet:${ip}`, 12, 10 * 60 * 1000)
+    ));
+    if (allowedEwalletChecks.some((allowed) => !allowed)) {
+      res.status(429).json({ error: 'Batas pemeriksaan e-wallet tercapai. Coba lagi beberapa menit atau periksa nama penerima langsung di aplikasi.' });
+      return;
+    }
 
     let targetResults;
     try {
       targetResults = await Promise.all(targetsToVerify.map((line) => {
         const product = catalogProducts.find((candidate) => candidate.id === line.productId)!;
+        const item = product.items.find((candidate) => candidate.id === line.itemId);
         return verifyTarget({
           productId: product.id,
           productName: product.name,
@@ -1412,6 +1421,8 @@ async function createApp() {
           userId: line.userId,
           zoneId: line.zoneId,
           hasZoneId: product.hasZoneId,
+          itemId: item?.id,
+          itemName: item?.name,
         });
       }));
     } catch (error) {
@@ -1612,7 +1623,38 @@ async function createApp() {
       }
     }
     try {
-      const result = await verifyTarget(req.body || {});
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const productId = String(body.productId ?? '').trim().slice(0, 100);
+      const itemId = String(body.itemId ?? '').trim().slice(0, 100);
+      let catalogProducts = INITIAL_PRODUCTS_DATA;
+      try {
+        catalogProducts = (await getEffectiveCatalog()).products;
+      } catch {
+        // A temporary catalog DB issue must not turn a format-only lookup into a false confirmation.
+        catalogProducts = INITIAL_PRODUCTS_DATA;
+      }
+      const product = catalogProducts.find((candidate) => candidate.id === productId);
+      if (!product) {
+        res.status(400).json({ valid: false, level: 'invalid', provider: 'Katalog server', message: 'Produk tidak ditemukan di katalog server.' });
+        return;
+      }
+      const item = product.items.find((candidate) => candidate.id === itemId);
+      const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+      if (product.category === 'ewallet' && item && !(await allowRateLimitedRequest(`verify-ewallet:${ip}`, 12, 10 * 60 * 1000))) {
+        res.status(429).json({ valid: true, level: 'format_only', provider: 'Pembatasan permintaan', accountName: `Nomor tujuan: ${String(body.userId || '').trim()}`, regionOrInfo: 'Batas pemeriksaan e-wallet tercapai. Periksa nama penerima langsung di aplikasi.' });
+        return;
+      }
+      const result = await verifyTarget({
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        idLabel: product.idLabel,
+        userId: body.userId,
+        zoneId: body.zoneId,
+        hasZoneId: product.hasZoneId,
+        itemId: item?.id,
+        itemName: item?.name,
+      });
       res.setHeader('Cache-Control', 'no-store');
       res.json({ ...result, verifiedAt: result.level === 'confirmed' ? new Date().toLocaleTimeString('id-ID') + ' WIB' : undefined });
     } catch (err: any) {

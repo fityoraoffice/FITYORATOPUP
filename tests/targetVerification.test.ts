@@ -42,9 +42,9 @@ test('nomor HP: format_only, tidak mengaku jaringan aktif/KYC', async () => {
 });
 
 test('e-wallet: tidak mengarang nama pemilik', async () => {
-  const r = await verifyTarget({ productId: 'ewallet', productName: 'DANA', userId: '081234567890' }, down);
+  const r = await verifyTarget({ productId: 'ewallet', productName: 'DANA', itemName: 'Saldo DANA 20.000', userId: '081234567890' }, down);
   assert.equal(r.level, 'format_only');
-  assert.match(r.regionOrInfo!, /tidak dapat dicek/);
+  assert.match(r.regionOrInfo!, /belum dapat diperiksa|tidak dapat dicek/);
 });
 
 test('PLN: tidak mengarang tarif/daya, menampilkan nomor yang diketik', async () => {

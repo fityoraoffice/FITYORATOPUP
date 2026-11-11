@@ -16,6 +16,8 @@ export interface TargetInput {
   userId?: unknown;
   zoneId?: unknown;
   hasZoneId?: unknown;
+  itemId?: unknown;
+  itemName?: unknown;
 }
 
 export interface TargetResult {
@@ -90,14 +92,71 @@ export async function verifyTarget(input: TargetInput, fetchImpl: typeof fetch =
       return { valid: false, level: 'invalid', provider: 'Pemeriksaan format', message: 'Format nomor tidak valid. Gunakan nomor HP Indonesia, contoh: 081234567890.' };
     }
     const operator = OPERATOR_PREFIXES.find(([re]) => re.test(phone.slice(0, 4)))?.[1];
-    const isEwallet = pid === 'ewallet' || cat === 'ewallet' || /e-wallet|dana|ovo|gopay|shopee/i.test(`${label} ${name}`);
+    const isEwallet = pid === 'ewallet' || cat === 'ewallet' || /e-wallet|dana|ovo|gopay|shopee|linkaja/i.test(`${label} ${name}`);
+
+    if (isEwallet) {
+      // The wallet code comes from the server-validated catalog item, never from a raw browser field.
+      const itemName = String(input.itemName ?? '');
+      const wallet = /shopee\s*pay|shopeepay/i.test(itemName)
+        ? { code: 'shopeepay', label: 'ShopeePay' }
+        : /link\s*aja|linkaja/i.test(itemName)
+          ? { code: 'linkaja', label: 'LinkAja' }
+          : /go\s*pay|gopay/i.test(itemName)
+            ? { code: 'gopay', label: 'GoPay' }
+            : /\bovo\b/i.test(itemName)
+              ? { code: 'ovo', label: 'OVO' }
+              : /\bdana\b/i.test(itemName)
+                ? { code: 'dana', label: 'DANA' }
+                : null;
+
+      if (!wallet) {
+        return {
+          valid: true,
+          level: 'format_only',
+          accountName: `Nomor tujuan: ${phone}`,
+          regionOrInfo: 'Pilih nominal/produk e-wallet terlebih dahulu agar jenis dompet dapat ditentukan.',
+          provider: 'Pemeriksaan format',
+        };
+      }
+
+      const data = await fetchJson(
+        fetchImpl,
+        'https://cekrekening-api.belibayar.online/api/v1/account-inquiry',
+        {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_bank: wallet.code, account_number: phone }),
+        },
+        5000
+      );
+      const accountHolder = typeof data?.data?.account_holder === 'string'
+        ? data.data.account_holder.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 80)
+        : '';
+
+      if (accountHolder) {
+        return {
+          valid: true,
+          level: 'confirmed',
+          accountName: accountHolder,
+          regionOrInfo: `${wallet.label} · cocokkan nama penerima di aplikasi sebelum membayar.`,
+          provider: 'CekRekening API (pihak ketiga)',
+        };
+      }
+
+      return {
+        valid: true,
+        level: 'format_only',
+        accountName: `Nomor tujuan: ${phone}`,
+        regionOrInfo: `Nama penerima ${wallet.label} belum dapat diperiksa. Cocokkan nama di aplikasi ${wallet.label} sebelum melanjutkan.`,
+        provider: 'CekRekening API (tidak tersedia)',
+      };
+    }
+
     return {
       valid: true,
       level: 'format_only',
       accountName: `Nomor tujuan: ${phone}`,
-      regionOrInfo: isEwallet
-        ? 'Nama pemilik akun e-wallet tidak dapat dicek otomatis. Pastikan nomor ini benar.'
-        : `${operator ? `Awalan nomor menunjukkan ${operator} (perkiraan). ` : ''}Aktif/tidaknya nomor tidak dapat dicek otomatis.`,
+      regionOrInfo: `${operator ? `Awalan nomor menunjukkan ${operator} (perkiraan). ` : ''}Aktif/tidaknya nomor tidak dapat dicek otomatis.`,
       provider: 'Pemeriksaan format',
     };
   }

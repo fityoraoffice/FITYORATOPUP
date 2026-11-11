@@ -56,3 +56,72 @@ test('lookup nickname yang gagal tetap format_only tanpa nama buatan', async () 
   assert.equal(result.level, 'format_only');
   assert.equal(result.accountName, 'ID: 7715033898');
 });
+
+test('lookup e-wallet memakai kode dompet dari item katalog dan nama dari respons provider', async () => {
+  const cases: Array<[string, string]> = [
+    ['Saldo DANA 20.000', 'dana'],
+    ['Saldo OVO 50.000', 'ovo'],
+    ['Saldo GoPay 100.000', 'gopay'],
+    ['Saldo ShopeePay 50.000', 'shopeepay'],
+    ['Saldo LinkAja 50.000', 'linkaja'],
+  ];
+
+  for (const [itemName, code] of cases) {
+    let requestUrl = '';
+    let requestBody: any = null;
+    const mockFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requestUrl = String(input);
+      requestBody = JSON.parse(String(init?.body || '{}'));
+      return new Response(JSON.stringify({ data: { account_holder: 'NAMA UJI' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const result = await verifyTarget({
+      productId: 'ewallet',
+      category: 'ewallet',
+      itemName,
+      userId: '081234567890',
+    }, mockFetch);
+
+    assert.equal(requestUrl, 'https://cekrekening-api.belibayar.online/api/v1/account-inquiry');
+    assert.equal(requestBody.account_bank, code);
+    assert.equal(requestBody.account_number, '081234567890');
+    assert.equal(result.level, 'confirmed', itemName);
+    assert.equal(result.accountName, 'NAMA UJI', itemName);
+  }
+});
+
+test('lookup e-wallet tanpa item yang dikenali tidak memanggil provider', async () => {
+  let calls = 0;
+  const mockFetch = (async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ data: { account_holder: 'NAMA UJI' } }), { status: 200 });
+  }) as typeof fetch;
+
+  const result = await verifyTarget({
+    productId: 'ewallet',
+    category: 'ewallet',
+    userId: '081234567890',
+  }, mockFetch);
+
+  assert.equal(calls, 0);
+  assert.equal(result.level, 'format_only');
+  assert.ok((result.regionOrInfo || '').includes('Pilih nominal/produk e-wallet'));
+});
+
+test('lookup e-wallet saat provider gagal tetap format_only tanpa nama buatan', async () => {
+  const offline = (async () => new Response('Service unavailable', { status: 503 })) as typeof fetch;
+  const result = await verifyTarget({
+    productId: 'ewallet',
+    category: 'ewallet',
+    itemName: 'Saldo DANA 20.000',
+    userId: '081234567890',
+  }, offline);
+
+  assert.equal(result.valid, true);
+  assert.equal(result.level, 'format_only');
+  assert.equal(result.accountName, 'Nomor tujuan: 081234567890');
+  assert.doesNotMatch(result.accountName || '', /NAMA UJI/);
+});
