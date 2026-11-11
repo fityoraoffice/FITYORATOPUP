@@ -854,11 +854,11 @@ export const INITIAL_PRODUCTS_DATA: Product[] = [
 
 export const PAYMENT_METHODS: PaymentMethod[] = [
   { id: 'qris', name: 'QRIS All Payment (BCA, DANA, GoPay, OVO, ShopeePay)', group: 'QRIS Manual', fee: 0, badge: 'Diperiksa Admin' },
-  { id: 'gopay', name: 'GoPay (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
-  { id: 'dana', name: 'DANA (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
-  { id: 'ovo', name: 'OVO (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
-  { id: 'shopeepay', name: 'ShopeePay (Transfer No. HP)', group: 'E-Wallet', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
-  { id: 'seabank', name: 'SeaBank (Transfer Bank Digital)', group: 'Bank Transfer', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
+  { id: 'gopay', name: 'GoPay (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Transfer Manual', isMaintenance: false },
+  { id: 'dana', name: 'DANA (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Transfer Manual', isMaintenance: false },
+  { id: 'ovo', name: 'OVO (Transfer No. HP / Akun)', group: 'E-Wallet', fee: 0, badge: 'Transfer Manual', isMaintenance: false },
+  { id: 'shopeepay', name: 'ShopeePay (Transfer No. HP)', group: 'E-Wallet', fee: 0, badge: 'Transfer Manual', isMaintenance: false },
+  { id: 'seabank', name: 'SeaBank (Transfer Bank Digital)', group: 'Bank Transfer', fee: 0, badge: 'Transfer Manual', isMaintenance: false },
   { id: 'bca_va', name: 'BCA Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
   { id: 'bri_va', name: 'BRI Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
   { id: 'mandiri_va', name: 'Mandiri Virtual Account', group: 'Virtual Account', fee: 0, badge: 'Belum tersedia', isMaintenance: true },
@@ -891,7 +891,7 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     topic: 'Pembayaran',
     q: 'Bagaimana cara pembayarannya?',
-    a: 'Saat ini metode yang dikonfigurasi di website adalah QRIS statis GoPay Merchant. Pastikan nama merchant dan nominal cocok sebelum membayar. Pembayaran diproses admin memeriksa riwayat transaksi GoPay Merchant secara cepat.'
+    a: 'Pembayaran tersedia melalui QRIS statis GoPay Merchant atau transfer manual GoPay, DANA, OVO, ShopeePay, dan SeaBank. Pastikan nama penerima serta nominal cocok sebelum menyelesaikan transfer. Pesanan menunggu pemeriksaan manual oleh Author; tidak ada konfirmasi pembayaran otomatis.'
   },
   {
     topic: 'Pembayaran',

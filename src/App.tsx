@@ -1833,22 +1833,16 @@ export default function App() {
     if (id === 'qris') {
       return 'Scan QRIS statis resmi CAHYO STORE melalui aplikasi pembayaran Anda dan masukkan nominal tepat sesuai total tagihan. Pembayaran tidak terverifikasi otomatis; pesanan baru diproses setelah Author memeriksa transaksi di GoPay Merchant.';
     }
-    if (id === 'gopay') {
-      return 'Transfer saldo GoPay ke nomor HP: 0813-9525-985 (a/n CAHYO). Masukkan nominal pas sesuai total tagihan.';
+    if (['gopay', 'dana', 'ovo', 'shopeepay'].includes(id)) {
+      return `Transfer melalui ${pay.name} ke nomor HP: 082228307663. Pastikan nama penerima yang muncul di aplikasi cocok sebelum menyelesaikan transfer. Masukkan nominal tepat sesuai total tagihan.`;
     }
-    if (id === 'dana') {
-      return 'Transfer saldo DANA ke nomor HP: 0813-9525-985 (a/n CAHYO). Masukkan nominal tepat sesuai total invoice.';
+    if (id === 'seabank') {
+      return 'Transfer melalui SeaBank ke rekening: 901964227508. Pastikan nama penerima yang muncul di aplikasi cocok sebelum menyelesaikan transfer. Masukkan nominal tepat sesuai total invoice.';
     }
-    if (id === 'ovo') {
-      return 'Transfer OVO Cash ke nomor HP: 0813-9525-985 (a/n CAHYO). Pastikan nominal sesuai dengan total invoice.';
+    if (['bca_va', 'bri_va', 'mandiri_va', 'bni_va', 'bca', 'bri', 'mandiri', 'bni'].includes(id)) {
+      return 'Virtual Account bank masih dalam pemeliharaan. Silakan pilih QRIS atau salah satu metode transfer manual yang tersedia.';
     }
-    if (id === 'shopeepay') {
-      return 'Transfer ShopeePay ke nomor HP: 0813-9525-985 (a/n CAHYO). Cantumkan ID pesanan Anda.';
-    }
-    if (id === 'bca' || id === 'bri' || id === 'mandiri' || pay.group.toLowerCase().includes('bank')) {
-      return 'Transfer bank tidak tersedia pada versi ini. Muat ulang halaman dan pilih QRIS atau E-Wallet (GoPay, DANA, OVO, ShopeePay).';
-    }
-    return `Ikuti panduan pembayaran ${pay.name} yang dikirimkan otomatis saat terhubung ke WhatsApp Admin.`;
+    return `Ikuti panduan pembayaran ${pay.name}. Pembayaran diperiksa manual oleh Author; status pesanan tidak berubah menjadi lunas secara otomatis.`;
   };
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -5481,7 +5475,9 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                 {pay.group}
                                 {isMaint
                                   ? ' • Sedang Pemeliharaan'
-                                  : ' • Proses Otomatis'}
+                                  : pay.id === 'qris'
+                                  ? ' • QRIS statis, diperiksa manual'
+                                  : ' • Transfer manual, diperiksa Author'}
                               </p>
                             </div>
                           </div>

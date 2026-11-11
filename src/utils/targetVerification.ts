@@ -33,15 +33,18 @@ export function isTargetAcceptable(result: Pick<TargetResult, 'valid' | 'level'>
 }
 
 const GAME_NICKNAME_SLUGS: Record<string, string> = {
-  mlbb: 'ml',
-  magicchess: 'ml',
+  // Alias game yang tercantum pada dokumentasi publik provider.
+  codm: 'cod',
   ff: 'ff',
   ffmax: 'ff',
   genshin: 'gi',
   hsr: 'hsr',
-  pubg: 'pubgm',
+  magicchess: 'mcgg',
+  mlbb: 'ml',
+  pointblank: 'pb',
+  supersus: 'sus',
   valorant: 'valo',
-  codm: 'codm',
+  zzz: 'zzz',
 };
 
 const OPERATOR_PREFIXES: Array<[RegExp, string]> = [
@@ -146,16 +149,32 @@ export async function verifyTarget(input: TargetInput, fetchImpl: typeof fetch =
   const slug = GAME_NICKNAME_SLUGS[pid];
   if (slug) {
     const q = new URLSearchParams({ id: user });
-    if (zone) { q.set('zone', zone); q.set('server', zone); }
-    const data = await fetchJson(fetchImpl, `https://api.isan.eu.org/nickname/${slug}?${q.toString()}`, {}, 2400);
+    if (zone) {
+      q.set('zone', zone);
+      q.set('server', zone);
+    }
+    const data = await fetchJson(
+      fetchImpl,
+      `https://api.isan.eu.org/nickname/${slug}?${q.toString()}`,
+      { headers: { Accept: 'application/json' } },
+      6500
+    );
     if (data?.success && typeof data?.name === 'string' && data.name.trim()) {
-      return {
-        valid: true,
-        level: 'confirmed',
-        accountName: data.name.trim().slice(0, 60),
-        regionOrInfo: zone ? `Server/Zone: ${zone}` : 'ID ditemukan',
-        provider: 'Lookup nickname (pihak ketiga)',
-      };
+      let accountName = data.name.trim();
+      // Some gateways return percent-encoded Unicode; decode only encoded byte sequences.
+      if (/%[0-9a-fA-F]{2}/.test(accountName)) {
+        try { accountName = decodeURIComponent(accountName); } catch { /* keep provider value */ }
+      }
+      accountName = accountName.replace(/[\u0000-\u001F\u007F]/g, '').trim();
+      if (accountName) {
+        return {
+          valid: true,
+          level: 'confirmed',
+          accountName: accountName.slice(0, 60),
+          regionOrInfo: zone ? `Server/Zone: ${zone}` : 'ID ditemukan',
+          provider: 'Lookup nickname (pihak ketiga)',
+        };
+      }
     }
   }
 

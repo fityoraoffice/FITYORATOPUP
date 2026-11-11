@@ -362,7 +362,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
                                 <span className="truncate">{pay.group}</span>
                                 <span className="text-cyan-400 shrink-0 ml-1">
-                                  {isMaint ? 'Maintenance' : 'Instan'}
+                                  {isMaint ? 'Maintenance' : pay.badge}
                                 </span>
                               </div>
                             </div>
