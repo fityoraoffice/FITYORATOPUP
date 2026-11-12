@@ -88,3 +88,58 @@ export async function saveSiteSettings(settings: PublicSiteSettings): Promise<st
   );
   return new Date(result.rows[0].updated_at).toISOString();
 }
+
+/** Pengumuman publik dan status operasional toko. Disimpan terpisah dari FX visual. */
+export interface StoreRuntimeSettings {
+  announcementEnabled: boolean;
+  announcementBadge: string;
+  announcementText: string;
+  storeOpen24h: boolean;
+  maintenanceMessage: string;
+}
+
+const STORE_RUNTIME_KEY = 'public_store_runtime';
+const DEFAULT_STORE_RUNTIME_SETTINGS: StoreRuntimeSettings = {
+  announcementEnabled: false,
+  announcementBadge: '📢 INFO RESMI TOKO',
+  announcementText: '',
+  storeOpen24h: true,
+  maintenanceMessage: 'Toko sedang dalam pemeliharaan. Silakan kembali beberapa saat lagi.'
+};
+
+export function sanitizeStoreRuntimeSettings(input: unknown): StoreRuntimeSettings | null {
+  if (!input || typeof input !== 'object') return null;
+  const src = input as Record<string, unknown>;
+  return {
+    announcementEnabled: Boolean(src.announcementEnabled),
+    announcementBadge: String(src.announcementBadge ?? DEFAULT_STORE_RUNTIME_SETTINGS.announcementBadge).trim().slice(0, 70) || DEFAULT_STORE_RUNTIME_SETTINGS.announcementBadge,
+    announcementText: String(src.announcementText ?? '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 280),
+    storeOpen24h: typeof src.storeOpen24h === 'boolean' ? src.storeOpen24h : true,
+    maintenanceMessage: String(src.maintenanceMessage ?? DEFAULT_STORE_RUNTIME_SETTINGS.maintenanceMessage).replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 240) || DEFAULT_STORE_RUNTIME_SETTINGS.maintenanceMessage
+  };
+}
+
+export async function getStoreRuntimeSettings(): Promise<StoreRuntimeSettings> {
+  await ensureTable();
+  const result = await pool.query(
+    'select value from public.site_settings where key = $1 limit 1',
+    [STORE_RUNTIME_KEY]
+  );
+  const row = result.rows[0];
+  if (!row) return { ...DEFAULT_STORE_RUNTIME_SETTINGS };
+  return sanitizeStoreRuntimeSettings(row.value) || { ...DEFAULT_STORE_RUNTIME_SETTINGS };
+}
+
+export async function saveStoreRuntimeSettings(settings: StoreRuntimeSettings): Promise<string> {
+  await ensureTable();
+  const clean = sanitizeStoreRuntimeSettings(settings);
+  if (!clean) throw new Error('Format status toko tidak valid.');
+  const result = await pool.query(
+    `insert into public.site_settings (key, value, updated_at)
+     values ($1, $2::jsonb, now())
+     on conflict (key) do update set value = excluded.value, updated_at = now()
+     returning updated_at`,
+    [STORE_RUNTIME_KEY, JSON.stringify(clean)]
+  );
+  return new Date(result.rows[0].updated_at).toISOString();
+}
