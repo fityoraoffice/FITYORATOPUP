@@ -3030,9 +3030,9 @@ ${itemsLines}
 
     const snapshot = { ...confirmOrder, product: latestProduct, item: latestItem };
     const catalogChanged =
-      latestProduct.name !== snapshot.product.name ||
-      latestItem.name !== snapshot.item.name ||
-      latestItem.price !== snapshot.item.price;
+      latestProduct.name !== confirmOrder.product.name ||
+      latestItem.name !== confirmOrder.item.name ||
+      latestItem.price !== confirmOrder.item.price;
     setSelectedProduct(latestProduct);
     setSelectedItem(latestItem);
     if (catalogChanged) {
