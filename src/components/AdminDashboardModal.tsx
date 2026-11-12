@@ -758,11 +758,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [itemPriceDrafts, setItemPriceDrafts] = useState<Record<string, string>>({});
   const [globalMarginPercent, setGlobalMarginPercent] = useState<number>(7);
 
+  const handleGlobalMarginChange = (marginPct: number) => {
+    const nextMargin = Math.max(5, Math.min(10, Math.round(marginPct)));
+    setGlobalMarginPercent(nextMargin);
+    const supplierPrice = Number(newItemSupplierPrice);
+    if (Number.isFinite(supplierPrice) && supplierPrice > 0) {
+      setNewItemPrice(String(calculateSellingPriceFromSupplier(supplierPrice, nextMargin)));
+    }
+  };
+
   const handleSupplierPriceInput = (valStr: string) => {
     setNewItemSupplierPrice(valStr);
     const num = Number(valStr);
     if (!isNaN(num) && num > 0) {
-      const calculatedSell = calculateSellingPriceFromSupplier(num, 7);
+      const calculatedSell = calculateSellingPriceFromSupplier(num, globalMarginPercent);
       setNewItemPrice(String(calculatedSell));
     } else if (!valStr.trim()) {
       setNewItemPrice('');
@@ -773,7 +782,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     setEditingItemSupplierPriceVal(valStr);
     const num = Number(valStr);
     if (!isNaN(num) && num > 0) {
-      setEditingItemPriceVal(String(calculateSellingPriceFromSupplier(num, 7)));
+      setEditingItemPriceVal(String(calculateSellingPriceFromSupplier(num, globalMarginPercent)));
     }
   };
 
@@ -1412,7 +1421,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       return {
         ...p,
         items: p.items.map((it) => {
-          const base = it.price > 0 ? it.price : 1000;
+          const base = Number(it.price);
+          if (!Number.isFinite(base) || base <= 0) return it;
           return {
             ...it,
             price: Math.max(500, Math.round((base * factor) / 500) * 500)
@@ -1424,6 +1434,34 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     setItemPriceDrafts({});
     showToast(
       `Margin keuntungan +${marginPct}% berhasil diterapkan ke ${scope === 'all' ? 'seluruh katalog' : activeCatalogProduct?.name}!`,
+      'success'
+    );
+  };
+
+  const handleApplyGlobalDiscount = (discountPct: number) => {
+    const safeDiscount = Math.max(1, Math.min(10, Math.round(discountPct)));
+    let updatedItemCount = 0;
+    const factor = 1 - safeDiscount / 100;
+    const updated = products.map((p) => ({
+      ...p,
+      items: p.items.map((it) => {
+        const currentPrice = Number(it.price);
+        // Never invent a price for catalog entries that are still unpriced (Rp 0).
+        if (!Number.isFinite(currentPrice) || currentPrice <= 0) return it;
+        updatedItemCount += 1;
+        return { ...it, price: Math.max(1, Math.round(currentPrice * factor)) };
+      })
+    }));
+
+    if (updatedItemCount === 0) {
+      showToast('Belum ada nominal dengan harga di atas Rp 0 untuk diberi diskon.', 'info');
+      return;
+    }
+
+    onUpdateProducts(updated);
+    setItemPriceDrafts({});
+    showToast(
+      `Diskon ${safeDiscount}% diterapkan ke ${updatedItemCount} nominal di seluruh katalog. Harga Rp 0 tetap Rp 0.`,
       'success'
     );
   };
@@ -3647,7 +3685,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               <Percent className="w-3.5 h-3.5 text-purple-400" />
                               <span>Terapkan Margin Keuntungan Otomatis:</span>
                             </span>
-                            {[5, 7, 10, 15, 20].map((pct) => (
+                            {[5, 6, 7, 8, 9, 10].map((pct) => (
                               <button
                                 key={pct}
                                 type="button"
@@ -3661,6 +3699,30 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           </div>
                           <span className="text-[10px] text-slate-400">
                             *Pilih margin di atas untuk kalkulasi cepat harga jual
+                          </span>
+                        </div>
+
+                        {/* Quick Global Discount Controls */}
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 pt-3 mt-2 border-t border-white/5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-extrabold text-slate-300 flex items-center gap-1">
+                              <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Terapkan Diskon ke Seluruh Katalog:</span>
+                            </span>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((pct) => (
+                              <button
+                                key={`global-discount-${pct}`}
+                                type="button"
+                                onClick={() => handleApplyGlobalDiscount(pct)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-500/35 text-emerald-300 hover:text-white font-black text-[11px] cursor-pointer transition-all active:scale-95"
+                                title={`Terapkan diskon ${pct}% ke seluruh nominal katalog yang sudah memiliki harga`}
+                              >
+                                -{pct}% Diskon
+                              </button>
+                            ))}
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            *Diskon dihitung dari harga saat ini; nominal Rp 0 tetap Rp 0.
                           </span>
                         </div>
                       </div>
@@ -4018,15 +4080,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                               <span className="font-extrabold text-white flex items-center gap-1.5">
                                 <Plus className="w-3.5 h-3.5 text-cyan-400" />
-                                <span>Tambah Item Nominal Baru (Auto Margin 7%)</span>
+                                <span>Tambah Item Nominal Baru (Auto Margin {globalMarginPercent}%)</span>
                               </span>
                               <span className="text-[10px] text-amber-300 font-semibold">
-                                *Isi Harga Modal Supplier &rarr; Harga Jual Terpasang Otomatis (+7%)
+                                *Isi Harga Modal Supplier &rarr; Harga Jual Terpasang Otomatis (+{globalMarginPercent}%)
                               </span>
                             </div>
                             <form
                               onSubmit={handleAddNominalItem}
-                              className="grid grid-cols-1 sm:grid-cols-4 gap-2.5"
+                              className="grid grid-cols-1 sm:grid-cols-5 gap-2.5"
                             >
                               <input
                                 type="text"
@@ -4042,11 +4104,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 placeholder="Harga Modal Supplier (Rp)"
                                 className="bg-slate-900 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-300 text-xs focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
                               />
+                              <select
+                                value={globalMarginPercent}
+                                onChange={(e) => handleGlobalMarginChange(Number(e.target.value))}
+                                aria-label="Persentase margin keuntungan"
+                                className="bg-slate-900 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-300 text-xs focus:outline-none focus:border-purple-400"
+                              >
+                                {[5, 6, 7, 8, 9, 10].map((pct) => (
+                                  <option key={pct} value={pct}>Margin +{pct}%</option>
+                                ))}
+                              </select>
                               <input
                                 type="number"
                                 value={newItemPrice}
                                 onChange={(e) => setNewItemPrice(e.target.value)}
-                                placeholder="Harga Jual (+7% Auto)"
+                                placeholder={`Harga Jual (+${globalMarginPercent}% Auto)`}
                                 className="bg-slate-900 border border-cyan-500/40 rounded-xl px-3 py-2 text-cyan-300 font-bold text-xs focus:outline-none focus:border-cyan-400 placeholder:text-slate-500"
                               />
                               <button
