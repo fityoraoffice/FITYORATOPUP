@@ -3133,7 +3133,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
 ⚠️ *PENTING:* Cocokkan nominal *Rp ${total.toLocaleString('id-ID')}*. Pembayaran belum terverifikasi sampai Admin memeriksa transaksi di aplikasi merchant.
 
 📲 *TUJUAN TRANSFER PEMBAYARAN:*
-• No. HP / E-Wallet (GoPay, DANA, OVO): *0813-9525-985* (a/n CAHYO)
+• No. HP / E-Wallet (GoPay, DANA, OVO): *0822-2830-7663* (a/n CAHYO)
 • QRIS All Payment: *CAHYO STORE, PULSA & TAGIHAN* (NMID: ID1026469444966)
 
 🙏 _Pesanan menunggu verifikasi admin. Kirim bukti pembayaran untuk diproses secepatnya. Terima kasih!_`;
@@ -7295,13 +7295,13 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                 </div>
                                 <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-950 border border-cyan-500/30">
                                   <span className="font-mono text-base font-extrabold text-cyan-300 tracking-wider">
-                                    0813-9525-985
+                                    0822-2830-7663
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigator.clipboard?.writeText('08139525985');
-                                      showToast('Nomor HP 08139525985 (a/n CAHYO) berhasil disalin!', 'success');
+                                      navigator.clipboard?.writeText('082228307663');
+                                      showToast('Nomor HP 082228307663 (a/n CAHYO) berhasil disalin!', 'success');
                                     }}
                                     className="px-2.5 py-1 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
                                   >
@@ -7428,13 +7428,13 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigator.clipboard?.writeText('08139525985');
-                                      showToast('Nomor HP 08139525985 a/n CAHYO berhasil disalin!', 'success');
+                                      navigator.clipboard?.writeText('082228307663');
+                                      showToast('Nomor HP 082228307663 a/n CAHYO berhasil disalin!', 'success');
                                     }}
                                     className="px-2 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-200 font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shrink-0"
                                   >
                                     <Copy className="w-2.5 h-2.5" />
-                                    <span>Salin 0813-9525-985</span>
+                                    <span>Salin 0822-2830-7663</span>
                                   </button>
                                 </div>
                               </div>
