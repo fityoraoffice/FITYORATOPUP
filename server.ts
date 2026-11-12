@@ -683,6 +683,7 @@ async function createApp() {
   };
 
   app.post('/api/admin/login', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
     const now = Date.now();
     // Batas dicek SEBELUM sandi dicocokkan, jadi tebakan sandi benar-benar terhenti saat terkunci.
@@ -693,9 +694,13 @@ async function createApp() {
     }
     const identifier = String(req.body?.identifier || req.body?.email || req.body?.username || '').trim().toLowerCase();
     const password = String(req.body?.password ?? '');
+    if (!identifier || identifier.length > 254 || !password || password.length > 1024) {
+      res.status(400).json({ error: 'Email/ID Author dan kata sandi wajib diisi dengan format yang valid.' });
+      return;
+    }
 
     const authorIdMatch = isAuthorMatch(identifier);
-    const authorPassMatch = isAuthorPasswordMatch(password);
+const authorPassMatch = isAuthorPasswordMatch(password);
 
     if (authorIdMatch && authorPassMatch) {
       const sessionEmail = identifier.includes('@') ? identifier : PRIMARY_AUTHOR_EMAIL;
@@ -1626,12 +1631,13 @@ async function createApp() {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       const productId = String(body.productId ?? '').trim().slice(0, 100);
       const itemId = String(body.itemId ?? '').trim().slice(0, 100);
-      let catalogProducts = INITIAL_PRODUCTS_DATA;
+      let catalogProducts: typeof INITIAL_PRODUCTS_DATA;
       try {
         catalogProducts = (await getEffectiveCatalog()).products;
-      } catch {
-        // A temporary catalog DB issue must not turn a format-only lookup into a false confirmation.
-        catalogProducts = INITIAL_PRODUCTS_DATA;
+      } catch (error) {
+        console.error('[VerifyTarget] Catalog unavailable:', error);
+        res.status(503).json({ valid: false, level: 'invalid', provider: 'Katalog server', message: 'Katalog terbaru sedang tidak tersedia. Pemeriksaan tujuan dihentikan; coba lagi nanti.' });
+        return;
       }
       const product = catalogProducts.find((candidate) => candidate.id === productId);
       if (!product) {
@@ -1757,6 +1763,7 @@ async function createApp() {
   });
 
   app.post('/api/users/login', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
     const identifier = String(req.body?.identifier || '').trim().toLowerCase();
     const password = String(req.body?.password ?? '');

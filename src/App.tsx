@@ -2671,22 +2671,74 @@ export default function App() {
       return;
     }
 
+    // Buka tab kosong saat gesture klik masih aktif agar Android/browser tidak memblokir popup.
+    // URL WhatsApp baru dipasang setelah server mengonfirmasi invoice tersimpan.
+    const whatsappWindow = window.open('about:blank', '_blank');
     setSubmitting(true);
+
+    const remoteCatalog = await fetchCatalog();
+    if (!remoteCatalog) {
+      try { whatsappWindow?.close(); } catch {}
+      setSubmitting(false);
+      showToast('Katalog terbaru belum dapat diperiksa. Troli tetap tersimpan; coba lagi saat koneksi pulih.', 'error');
+      return;
+    }
+
+    const latestCart: CartItem[] = [];
+    let unavailableCartItem = false;
+    for (const entry of cart) {
+      const product = remoteCatalog.products.find((candidate) => candidate.id === entry.productId);
+      const item = product?.items.find((candidate) => candidate.id === entry.itemId);
+      if (!product || !item || item.price <= 0) {
+        unavailableCartItem = true;
+        continue;
+      }
+      latestCart.push({
+        ...entry,
+        productName: product.name,
+        productImage: product.image,
+        productImageFit: product.imageFit,
+        itemName: item.name,
+        price: item.price
+      });
+    }
+    setProducts(remoteCatalog.products);
+    try { localStorage.setItem(CUSTOM_CATALOG_KEY, JSON.stringify(remoteCatalog.products)); } catch {}
+    if (unavailableCartItem || latestCart.length !== cart.length) {
+      try { whatsappWindow?.close(); } catch {}
+      setSubmitting(false);
+      showToast('Ada produk/nominal di troli yang sudah tidak tersedia atau belum memiliki harga. Periksa katalog dan hapus item tersebut sebelum checkout.', 'error');
+      return;
+    }
+
+    const catalogChanged = latestCart.some((entry, index) =>
+      entry.productName !== cart[index].productName ||
+      entry.itemName !== cart[index].itemName ||
+      entry.price !== cart[index].price
+    );
+    setCart(latestCart);
+    saveCartItems(latestCart);
+    if (catalogChanged) {
+      try { whatsappWindow?.close(); } catch {}
+      setSubmitting(false);
+      showToast('Harga/nominal katalog berubah. Troli sudah diperbarui dengan data terbaru; periksa kembali sebelum menekan checkout lagi.', 'info');
+      return;
+    }
 
     let orderId = generateOrderId();
     while (localStorage.getItem(orderId)) orderId = generateOrderId();
 
-    const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const subtotal = latestCart.reduce((acc, item) => acc + item.price * item.quantity, 0);
     // Strict 200-400 unique code range
     const cartUniqueCode = Math.floor(Math.random() * (400 - 200 + 1)) + 200;
     const total = subtotal + selectedPayment.fee + cartUniqueCode;
-    const totalCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+    const totalCount = latestCart.reduce((acc, item) => acc + item.quantity, 0);
 
     const txData: StoredTransaction = {
       id: orderId,
-      product: `${cart[0].productName}${cart.length > 1 ? ` +${cart.length - 1} lainnya` : ''}`,
+      product: `${latestCart[0].productName}${latestCart.length > 1 ? ` +${latestCart.length - 1} lainnya` : ''}`,
       item: `${totalCount} Voucher`,
-      target: cart.map((c) => `${c.userId}${c.zoneId ? `(${c.zoneId})` : ''}`).join(', '),
+      target: latestCart.map((c) => `${c.userId}${c.zoneId ? `(${c.zoneId})` : ''}`).join(', '),
       status: 'Proses / Menunggu Pembayaran',
       total: `Rp ${total.toLocaleString('id-ID')}`,
       uniqueCode: cartUniqueCode,
@@ -2697,7 +2749,7 @@ export default function App() {
       memberId: currentUser ? currentUser.id : '',
       createdAt: new Date().toLocaleString('id-ID'),
       paymentId: selectedPayment.id,
-      lineItems: cart.map((c) => ({ productId: c.productId, itemId: c.itemId, quantity: c.quantity, userId: c.userId, zoneId: c.zoneId }))
+      lineItems: latestCart.map((c) => ({ productId: c.productId, itemId: c.itemId, quantity: c.quantity, userId: c.userId, zoneId: c.zoneId }))
     };
 
     try {
@@ -2712,12 +2764,17 @@ export default function App() {
         throw new Error(serverData?.error || 'Server belum menyimpan pesanan.');
       }
       const canonical = serverData.order;
-      if (canonical.product !== txData.product || canonical.item !== txData.item || canonical.target !== txData.target || canonical.total !== txData.total || canonical.payment !== txData.payment) {
-        throw new Error('Rincian pesanan berbeda dari katalog server. Muat ulang halaman dan periksa harga sebelum membayar.');
-      }
+      // Respons sukses berarti server sudah menyimpan invoice. Gunakan rincian kanonisnya
+      // tanpa membatalkan struk karena perbedaan format teks dari browser.
+      txData.product = String(canonical.product || txData.product);
+      txData.item = String(canonical.item || txData.item);
+      txData.target = String(canonical.target || txData.target);
+      txData.total = String(canonical.total || txData.total);
+      txData.payment = String(canonical.payment || txData.payment);
       txData.status = canonical.status || 'Menunggu Pembayaran';
       setServerOrderReady(true);
     } catch (err) {
+      try { whatsappWindow?.close(); } catch {}
       setSubmitting(false);
       showToast(err instanceof Error ? err.message : 'Pesanan belum tersimpan. Jangan lakukan pembayaran dulu.', 'error');
       return;
@@ -2738,7 +2795,7 @@ export default function App() {
     });
 
     recordRecentActivity(
-      cart[0].productId,
+      latestCart[0].productId,
       'ordered',
       `Checkout Troli (${totalCount} item) • ${orderId}`
     );
@@ -2780,6 +2837,16 @@ ${itemsLines}
 🙏 _Mohon segera diproses ya Admin, pesanan menunggu verifikasi admin di aplikasi merchant. Bukti pembayaran tidak menggantikan pemeriksaan transaksi. Terima kasih!_`;
 
     const waUrl = `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(textMsg)}`;
+    let whatsappAutoOpened = false;
+    if (whatsappWindow) {
+      try {
+        whatsappWindow.opener = null;
+        whatsappWindow.location.replace(waUrl);
+        whatsappAutoOpened = true;
+      } catch {
+        try { whatsappWindow.close(); } catch {}
+      }
+    }
 
     setCart([]);
     saveCartItems([]);
@@ -2788,9 +2855,9 @@ ${itemsLines}
     playTransactionSuccessDing();
     setCompletedReceipt({
       orderId,
-      productName: `${cart[0].productName}${cart.length > 1 ? ` +${cart.length - 1} lainnya` : ''}`,
+      productName: `${latestCart[0].productName}${latestCart.length > 1 ? ` +${latestCart.length - 1} lainnya` : ''}`,
       itemName: `${totalCount} Voucher Digital`,
-      targetId: cart.map((c) => `${c.userId}${c.zoneId ? `(${c.zoneId})` : ''}`).join(', '),
+      targetId: latestCart.map((c) => `${c.userId}${c.zoneId ? `(${c.zoneId})` : ''}`).join(', '),
       paymentId: selectedPayment.id,
       paymentName: selectedPayment.name,
       paymentGroup: selectedPayment.group,
@@ -2801,7 +2868,7 @@ ${itemsLines}
       waUrl
     });
     setSubmitting(false);
-    showToast(`Pesanan Troli ${orderId} berhasil dibuat dan tersimpan di server. Pembayaran tetap menunggu verifikasi admin.`, 'success');
+    showToast(`Pesanan Troli ${orderId} tersimpan. ${whatsappAutoOpened ? 'WhatsApp dibuka di tab baru.' : 'Buka tombol WhatsApp pada struk untuk mengirim konfirmasi.'} Pembayaran tetap menunggu verifikasi admin.`, 'success');
   };
 
   // Order summary calculations
@@ -2934,30 +3001,69 @@ ${itemsLines}
       showToast('Waktu pembayaran habis! Silakan klik Perbarui Waktu terlebih dahulu.', 'error');
       return;
     }
+    // Buka tab sinkron dengan klik untuk menghindari popup blocker di Android.
+    const whatsappWindow = window.open('about:blank', '_blank');
     setSubmitting(true);
     playCheckoutClickDing();
 
-    const orderId = confirmOrder.orderId;
-    const uniqueCode = confirmOrder.uniqueCode || 0;
-    const total = confirmOrder.item.price + confirmOrder.payment.fee + uniqueCode;
+    const remoteCatalog = await fetchCatalog();
+    if (!remoteCatalog) {
+      try { whatsappWindow?.close(); } catch {}
+      setSubmitting(false);
+      showToast('Katalog terbaru belum dapat diperiksa. Pesanan belum dibuat; coba lagi saat koneksi pulih.', 'error');
+      return;
+    }
+    setProducts(remoteCatalog.products);
+    try { localStorage.setItem(CUSTOM_CATALOG_KEY, JSON.stringify(remoteCatalog.products)); } catch {}
+
+    const latestProduct = remoteCatalog.products.find((product) => product.id === confirmOrder.product.id);
+    const latestItem = latestProduct?.items.find((item) => item.id === confirmOrder.item.id);
+    if (!latestProduct || !latestItem || latestItem.price <= 0) {
+      try { whatsappWindow?.close(); } catch {}
+      setSelectedProduct(latestProduct || null);
+      setSelectedItem(null);
+      setConfirmOrder(null);
+      setSubmitting(false);
+      showToast('Produk/nominal sudah tidak tersedia atau harganya belum ditetapkan. Pilih nominal lain dari katalog terbaru.', 'error');
+      return;
+    }
+
+    const snapshot = { ...confirmOrder, product: latestProduct, item: latestItem };
+    const catalogChanged =
+      latestProduct.name !== confirmOrder.product.name ||
+      latestItem.name !== confirmOrder.item.name ||
+      latestItem.price !== confirmOrder.item.price;
+    setSelectedProduct(latestProduct);
+    setSelectedItem(latestItem);
+    if (catalogChanged) {
+      try { whatsappWindow?.close(); } catch {}
+      setConfirmOrder(snapshot);
+      setSubmitting(false);
+      showToast('Harga/nominal berubah. Rincian sudah diperbarui; periksa kembali lalu tekan konfirmasi sekali lagi.', 'info');
+      return;
+    }
+
+    const orderId = snapshot.orderId;
+    const uniqueCode = snapshot.uniqueCode || 0;
+    const total = snapshot.item.price + snapshot.payment.fee + uniqueCode;
 
     const txData: StoredTransaction = {
       id: orderId,
-      product: confirmOrder.product.name,
-      item: confirmOrder.item.name,
-      target: `${confirmOrder.userId} ${confirmOrder.zoneId ? '(' + confirmOrder.zoneId + ')' : ''}`,
+      product: snapshot.product.name,
+      item: snapshot.item.name,
+      target: `${snapshot.userId} ${snapshot.zoneId ? '(' + snapshot.zoneId + ')' : ''}`,
       status: 'Menunggu Pembayaran',
       total: `Rp ${total.toLocaleString('id-ID')}`,
       uniqueCode,
-      payment: confirmOrder.payment.name,
-      whatsapp: confirmOrder.wa,
-      email: confirmOrder.email,
+      payment: snapshot.payment.name,
+      whatsapp: snapshot.wa,
+      email: snapshot.email,
       memberName: currentUser ? currentUser.name : 'Guest',
       memberId: currentUser ? currentUser.id : '',
       createdAt: new Date().toLocaleString('id-ID'),
-      productId: confirmOrder.product.id,
-      itemId: confirmOrder.item.id,
-      paymentId: confirmOrder.payment.id
+      productId: snapshot.product.id,
+      itemId: snapshot.item.id,
+      paymentId: snapshot.payment.id
     };
 
     try {
@@ -2972,12 +3078,16 @@ ${itemsLines}
         throw new Error(serverData?.error || 'Server belum menyimpan pesanan.');
       }
       const canonical = serverData.order;
-      if (canonical.product !== txData.product || canonical.item !== txData.item || canonical.target !== txData.target || canonical.total !== txData.total || canonical.payment !== txData.payment) {
-        throw new Error('Rincian pesanan berbeda dari katalog server. Muat ulang halaman dan periksa harga sebelum membayar.');
-      }
+      // Server sudah menyimpan invoice; struk mengikuti nilai kanonis dari server.
+      txData.product = String(canonical.product || txData.product);
+      txData.item = String(canonical.item || txData.item);
+      txData.target = String(canonical.target || txData.target);
+      txData.total = String(canonical.total || txData.total);
+      txData.payment = String(canonical.payment || txData.payment);
       txData.status = canonical.status || 'Menunggu Pembayaran';
       setServerOrderReady(true);
     } catch (err) {
+      try { whatsappWindow?.close(); } catch {}
       setSubmitting(false);
       showToast(err instanceof Error ? err.message : 'Pesanan belum tersimpan. Jangan lakukan pembayaran dulu.', 'error');
       return;
@@ -2998,9 +3108,9 @@ ${itemsLines}
     });
 
     recordRecentActivity(
-      confirmOrder.product.id,
+      snapshot.product.id,
       'ordered',
-      `${confirmOrder.item.name} • ${orderId}`
+      `${snapshot.item.name} • ${orderId}`
     );
 
     const textMsg = `✨ *HALO ADMIN FITYORASTORE* ✨
@@ -3010,53 +3120,59 @@ Saya ingin konfirmasi pesanan *Top Up Digital* 🚀
    🧾 *DETAIL PESANAN BARU*
 ╚══════════════════════════╝
 🆔 *ID Transaksi* : *${orderId}*
-${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : ''}🎮 *Layanan* : *${confirmOrder.product.name}*
-💎 *Nominal Item* : *${confirmOrder.item.name}*
-🎯 *Target / ID* : *${confirmOrder.userId}*${confirmOrder.zoneId ? ` (Zone: *${confirmOrder.zoneId}*)` : ''}
-📱 *WA Pembeli* : *${confirmOrder.wa}*${confirmOrder.email ? `\n📧 *Email Struk* : *${confirmOrder.email}*` : ''}
+${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : ''}🎮 *Layanan* : *${snapshot.product.name}*
+💎 *Nominal Item* : *${snapshot.item.name}*
+🎯 *Target / ID* : *${snapshot.userId}*${snapshot.zoneId ? ` (Zone: *${snapshot.zoneId}*)` : ''}
+📱 *WA Pembeli* : *${snapshot.wa}*${snapshot.email ? `\n📧 *Email Struk* : *${snapshot.email}*` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💳 *RINCIAN PEMBAYARAN*
 ━━━━━━━━━━━━━━━━━━━━━━
-🏦 *Metode Bayar* : *${confirmOrder.payment.name}*
+🏦 *Metode Bayar* : *${snapshot.payment.name}*
 💵 *TOTAL BAYAR* : *Rp ${total.toLocaleString('id-ID')}*
-⚠️ *PENTING:* Mohon bayar tepat *Rp ${total.toLocaleString('id-ID')}* sesuai total tagihan agar transaksi langsung terverifikasi!
+⚠️ *PENTING:* Cocokkan nominal *Rp ${total.toLocaleString('id-ID')}*. Pembayaran belum terverifikasi sampai Admin memeriksa transaksi di aplikasi merchant.
 
 📲 *TUJUAN TRANSFER PEMBAYARAN:*
-• No. HP / E-Wallet (GoPay, DANA, OVO): *0813-9525-985* (a/n CAHYO)
+• No. HP / E-Wallet (GoPay, DANA, OVO): *0822-2830-7663* (a/n CAHYO)
 • QRIS All Payment: *CAHYO STORE, PULSA & TAGIHAN* (NMID: ID1026469444966)
 
 🙏 _Pesanan menunggu verifikasi admin. Kirim bukti pembayaran untuk diproses secepatnya. Terima kasih!_`;
 
     const encodedText = encodeURIComponent(textMsg);
     const waUrl = `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodedText}`;
+    let whatsappAutoOpened = false;
+    if (whatsappWindow) {
+      try {
+        whatsappWindow.opener = null;
+        whatsappWindow.location.replace(waUrl);
+        whatsappAutoOpened = true;
+      } catch {
+        try { whatsappWindow.close(); } catch {}
+      }
+    }
 
-    const snapshot = confirmOrder;
     delete draftsRef.current[snapshot.product.id];
-
-    window.setTimeout(() => {
-      setSubmitting(false);
-      playTransactionSuccessDing();
-      setQrisDisplayOrder({ orderId, totalAmount: total });
-      setCompletedReceipt({
-        orderId,
-        productName: snapshot.product.name,
-        itemName: snapshot.item.name,
-        targetId: `${snapshot.userId} ${snapshot.zoneId ? '(' + snapshot.zoneId + ')' : ''}`,
-        paymentId: snapshot.payment.id,
-        paymentName: snapshot.payment.name,
-        paymentGroup: snapshot.payment.group,
-        totalFormatted: `Rp ${total.toLocaleString('id-ID')}`,
-        whatsapp: snapshot.wa,
-        email: snapshot.email,
-        timestamp:
-          new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-        waUrl
-      });
-      setConfirmOrder(null);
+    setSubmitting(false);
+    playTransactionSuccessDing();
+    setQrisDisplayOrder({ orderId, totalAmount: total });
+    setCompletedReceipt({
+      orderId,
+      productName: snapshot.product.name,
+      itemName: snapshot.item.name,
+      targetId: `${snapshot.userId} ${snapshot.zoneId ? '(' + snapshot.zoneId + ')' : ''}`,
+      paymentId: snapshot.payment.id,
+      paymentName: snapshot.payment.name,
+      paymentGroup: snapshot.payment.group,
+      totalFormatted: `Rp ${total.toLocaleString('id-ID')}`,
+      whatsapp: snapshot.wa,
+      email: snapshot.email,
+      timestamp:
+        new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+      waUrl
+    });
+    setConfirmOrder(null);
     setServerOrderReady(false);
-      showToast(`Pesanan ${orderId} tersimpan di server dan menunggu verifikasi pembayaran.`, 'success');
-    }, 950);
+    showToast(`Pesanan ${orderId} tersimpan. ${whatsappAutoOpened ? 'WhatsApp dibuka di tab baru.' : 'Buka tombol WhatsApp pada struk untuk mengirim konfirmasi.'} Pembayaran tetap menunggu verifikasi admin.`, 'success');
   };
 
   const handleCheckOrderStatus = async () => {
@@ -7179,13 +7295,13 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                 </div>
                                 <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-950 border border-cyan-500/30">
                                   <span className="font-mono text-base font-extrabold text-cyan-300 tracking-wider">
-                                    0813-9525-985
+                                    0822-2830-7663
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigator.clipboard?.writeText('08139525985');
-                                      showToast('Nomor HP 08139525985 (a/n CAHYO) berhasil disalin!', 'success');
+                                      navigator.clipboard?.writeText('082228307663');
+                                      showToast('Nomor HP 082228307663 (a/n CAHYO) berhasil disalin!', 'success');
                                     }}
                                     className="px-2.5 py-1 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
                                   >
@@ -7312,13 +7428,13 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      navigator.clipboard?.writeText('08139525985');
-                                      showToast('Nomor HP 08139525985 a/n CAHYO berhasil disalin!', 'success');
+                                      navigator.clipboard?.writeText('082228307663');
+                                      showToast('Nomor HP 082228307663 a/n CAHYO berhasil disalin!', 'success');
                                     }}
                                     className="px-2 py-0.5 rounded bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-200 font-extrabold text-[9px] flex items-center gap-1 cursor-pointer shrink-0"
                                   >
                                     <Copy className="w-2.5 h-2.5" />
-                                    <span>Salin 0813-9525-985</span>
+                                    <span>Salin 0822-2830-7663</span>
                                   </button>
                                 </div>
                               </div>
