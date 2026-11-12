@@ -375,7 +375,7 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState<boolean>(false);
   const [adminInitialTab, setAdminInitialTab] = useState<
     'analytics' | 'theme' | 'studio' | 'orders' | 'streaming' | 'catalog' | 'members' | 'zip'
-  >('analytics');
+  >('catalog');
   const [currentCategory, setCurrentCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'name-asc'>('default');
@@ -6227,7 +6227,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         currentUser={currentUser}
-        onOpenAdmin={() => setAdminOpen(true)}
+        onOpenAdmin={() => { setAdminInitialTab('catalog'); setAdminOpen(true); }}
         onSuccessAuth={(user, msg) => {
           setCurrentUser(user);
           if (user.whatsapp) setWhatsappNumber(user.whatsapp);
@@ -7727,7 +7727,7 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
           {/* Author */}
           <button
             type="button"
-            onClick={() => setAdminOpen(true)}
+            onClick={() => { setAdminInitialTab('catalog'); setAdminOpen(true); }}
             className="flex-1 md:flex-none py-1.5 px-1 md:px-3 flex flex-col items-center gap-1 active:scale-95 transition-all cursor-pointer rounded-xl hover:bg-white/5"
             title="Author Control Panel (Pembuat Website)"
           >
