@@ -5,7 +5,7 @@
 
 import { Product, DEFAULT_PRODUCT_ARTWORKS } from '../data/catalog';
 
-const verifiedImageCache = new Map<string, boolean>();
+const verifiedImageCache = new Map<string, { ok: boolean; expiresAt: number }>();
 
 /**
  * Checks if an image URL can be loaded without network or CORS errors
@@ -14,9 +14,11 @@ export function canLoadImage(url: string, _minSize?: number, timeoutMs = 9000): 
   if (!url || typeof url !== 'string') return Promise.resolve(false);
   if (url.startsWith('data:image/svg+xml')) return Promise.resolve(true);
 
-  if (verifiedImageCache.has(url)) {
-    return Promise.resolve(verifiedImageCache.get(url)!);
+  const cached = verifiedImageCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) {
+    return Promise.resolve(cached.ok);
   }
+  if (cached) verifiedImageCache.delete(url);
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -25,7 +27,7 @@ export function canLoadImage(url: string, _minSize?: number, timeoutMs = 9000): 
     const timer = setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        verifiedImageCache.set(url, false);
+        verifiedImageCache.set(url, { ok: false, expiresAt: Date.now() + 30_000 });
         resolve(false);
       }
     }, timeoutMs || 9000);
@@ -34,7 +36,7 @@ export function canLoadImage(url: string, _minSize?: number, timeoutMs = 9000): 
       if (!resolved) {
         resolved = true;
         clearTimeout(timer);
-        verifiedImageCache.set(url, true);
+        verifiedImageCache.set(url, { ok: true, expiresAt: Date.now() + 10 * 60_000 });
         resolve(true);
       }
     };
@@ -43,7 +45,7 @@ export function canLoadImage(url: string, _minSize?: number, timeoutMs = 9000): 
       if (!resolved) {
         resolved = true;
         clearTimeout(timer);
-        verifiedImageCache.set(url, false);
+        verifiedImageCache.set(url, { ok: false, expiresAt: Date.now() + 30_000 });
         resolve(false);
       }
     };

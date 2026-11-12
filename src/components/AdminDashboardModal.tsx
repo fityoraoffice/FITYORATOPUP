@@ -51,7 +51,8 @@ import {
   createArtworkSvg,
   DEFAULT_MARGIN_PERCENT,
   calculateSellingPriceFromSupplier,
-  calculateSupplierPriceFromSelling
+  calculateSupplierPriceFromSelling,
+  calculateMarkupFromCurrentPrice
 } from '../data/catalog';
 import { WEBSITE_FILES_MANIFEST } from '../utils/zipExporter';
 import {
@@ -302,7 +303,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   const [activeTab, setActiveTab] = useState<
     'analytics' | 'theme' | 'studio' | 'orders' | 'streaming' | 'catalog' | 'members' | 'zip'
-  >(initialTab || 'analytics');
+  >(initialTab || 'catalog');
 
   useEffect(() => {
     if (initialTab) {
@@ -1454,25 +1455,23 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   };
 
   const handleApplyGlobalMargin = (marginPct: number, scope: 'all' | 'selected' = 'all') => {
-    const factor = 1 + marginPct / 100;
+    const safeMargin = Math.max(5, Math.min(10, Math.round(Number(marginPct) || 7)));
+    setGlobalMarginPercent(safeMargin);
     const updated = products.map((p) => {
       if (scope === 'selected' && p.id !== activeCatalogProduct?.id) return p;
       return {
         ...p,
         items: p.items.map((it) => {
           const base = Number(it.price);
-          if (!Number.isFinite(base) || base <= 0) return it;
-          return {
-            ...it,
-            price: Math.max(500, Math.round((base * factor) / 500) * 500)
-          };
+          if (!Number.isSafeInteger(base) || base <= 0) return it;
+          return { ...it, price: calculateMarkupFromCurrentPrice(base, safeMargin) };
         })
       };
     });
     onUpdateProducts(updated);
     setItemPriceDrafts({});
     showToast(
-      `Margin keuntungan +${marginPct}% berhasil diterapkan ke ${scope === 'all' ? 'seluruh katalog' : activeCatalogProduct?.name}!`,
+      `Markup +${safeMargin}% diterapkan ke ${scope === 'all' ? 'seluruh katalog' : activeCatalogProduct?.name}. Harga dihitung dari harga jual saat ini; nominal Rp 0 tetap Rp 0.`,
       'success'
     );
   };
@@ -2134,12 +2133,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-slate-950/90 border border-cyan-500/25 shadow-inner">
                     <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/20 flex flex-col justify-between gap-1">
                       <span className="text-[10px] text-slate-400 font-semibold block">
-                        Total Omzet &amp; Est. Profit ({profitMarginPct}%)
+                        Omzet Terkonfirmasi
                       </span>
                       <span className="text-sm sm:text-base font-extrabold text-emerald-400 tabular-nums block">
                         Rp{' '}
                         {transactions
-                          .filter((t) => !/batal/i.test(t.status))
+                          .filter((t) => t.paymentStatus === 'verified' && !/batal|cancel|gagal/i.test(t.status || ''))
                           .reduce((acc, t) => {
                             const num = Number(String(t.total || '').replace(/[^\d]/g, '')) || 0;
                             return acc + num;
@@ -2147,10 +2146,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           .toLocaleString('id-ID')}
                       </span>
                       <span className="text-[10px] text-amber-300 font-bold tabular-nums">
-                        Laba Bersih: ~Rp{' '}
+                        Estimasi laba (asumsi {profitMarginPct}%): ~Rp{' '}
                         {Math.round(
                           transactions
-                            .filter((t) => !/batal/i.test(t.status))
+                            .filter((t) => t.paymentStatus === 'verified' && !/batal|cancel|gagal/i.test(t.status || ''))
                             .reduce((acc, t) => {
                               const num = Number(String(t.total || '').replace(/[^\d]/g, '')) || 0;
                               return acc + num;
@@ -2158,6 +2157,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             (profitMarginPct / 100)
                         ).toLocaleString('id-ID')}
                       </span>
+                      <span className="text-[9px] text-slate-400 leading-relaxed">Perkiraan indikatif dari persentase target, bukan laba bersih aktual atau pembukuan modal supplier.</span>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-900/90 border border-cyan-500/20 flex flex-col justify-between gap-1">
                       <span className="text-[10px] text-slate-400 font-semibold block">
@@ -2690,10 +2690,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           <div className="p-3 rounded-xl bg-slate-950/90 border border-white/10 flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <span className="font-bold text-white block">
-                                Target Margin Profit Author ({profitMarginPct}%)
+                                Asumsi Estimasi Laba ({profitMarginPct}%)
                               </span>
                               <span className="text-[10px] text-slate-400 block">
-                                Digunakan untuk menghitung estimasi laba bersih di bar atas.
+                                Hanya asumsi untuk estimasi; bukan laba bersih aktual karena biaya modal tidak tersimpan per pesanan.
                               </span>
                             </div>
                             <input
@@ -3737,7 +3737,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[11px] font-extrabold text-slate-300 flex items-center gap-1">
                               <Percent className="w-3.5 h-3.5 text-purple-400" />
-                              <span>Terapkan Margin Keuntungan Otomatis:</span>
+                              <span>Terapkan Markup ke Harga Saat Ini:</span>
                             </span>
                             {[5, 6, 7, 8, 9, 10].map((pct) => (
                               <button
@@ -3752,7 +3752,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             ))}
                           </div>
                           <span className="text-[10px] text-slate-400">
-                            *Pilih margin di atas untuk kalkulasi cepat harga jual
+                            *Markup dari harga jual saat ini; pengulangan akan menambah markup lagi. Harga Rp 0 tetap Rp 0.
                           </span>
                         </div>
 
@@ -4137,7 +4137,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 <span>Tambah Item Nominal Baru (Auto Margin {globalMarginPercent}%)</span>
                               </span>
                               <span className="text-[10px] text-amber-300 font-semibold">
-                                *Isi Harga Modal Supplier &rarr; Harga Jual Terpasang Otomatis (+{globalMarginPercent}%)
+                                *Modal supplier dipakai untuk menghitung harga jual saat item ditambahkan (+{globalMarginPercent}%).
                               </span>
                             </div>
                             <form

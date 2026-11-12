@@ -271,7 +271,7 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
       strategySummary: `Berdasarkan analisis katalog CahyoStore, berikut adalah pilihan nominal dengan rasio nilai terbaik sesuai target "${selectedGoal}".`,
       recommendations: candidates.slice(0, 3),
       proTip:
-        'Gunakan metode pembayaran QRIS, DANA, GoPay, atau ShopeePay untuk menikmati Biaya Admin Rp 0 (Gratis)!'
+        'Periksa total dan biaya pada invoice. Pembayaran QRIS diperiksa manual oleh Author.'
     };
   };
 
@@ -289,15 +289,17 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
     if (loadingRecommend) return;
 
     setLoadingRecommend(true);
+    const recommendController = new AbortController();
+    const recommendTimeout = window.setTimeout(() => recommendController.abort(), 26_000);
     try {
       const res = await fetch('/api/ai/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: recommendController.signal,
         body: JSON.stringify({
           budget,
           gameOrCategory: selectedTarget,
-          goal: selectedGoal,
-          catalogSummary
+          goal: selectedGoal
         })
       });
 
@@ -333,7 +335,7 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
             recommendations: validatedRecs.slice(0, 3),
             proTip:
               data.proTip ||
-              'Gunakan QRIS GoPay Merchant Resmi CahyoStore untuk bebas biaya admin (Rp 0).'
+              'Periksa total dan biaya pada invoice. Pembayaran QRIS diperiksa manual oleh Author.'
           });
         } else {
           setResult(buildLocalFallbackRecommendation(budget, selectedTarget));
@@ -344,6 +346,7 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
     } catch {
       setResult(buildLocalFallbackRecommendation(budget, selectedTarget));
     } finally {
+      window.clearTimeout(recommendTimeout);
       setLoadingRecommend(false);
     }
   };
@@ -407,6 +410,8 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
       }
     }
 
+    const chatController = new AbortController();
+    const chatTimeout = window.setTimeout(() => chatController.abort(), 26_000);
     try {
       const historyPayload = messages.slice(-4).map((m) => ({
         role: m.role,
@@ -416,10 +421,10 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: chatController.signal,
         body: JSON.stringify({
           message: text,
-          history: historyPayload,
-          catalogSummary
+          history: historyPayload
         })
       });
 
@@ -470,6 +475,7 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
         }
       ]);
     } finally {
+      window.clearTimeout(chatTimeout);
       setLoadingChat(false);
     }
   };

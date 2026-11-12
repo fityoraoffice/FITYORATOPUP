@@ -25,6 +25,8 @@ export function createPool(): Pool {
       max: 1,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
+      query_timeout: 18_000,
+      statement_timeout: 15_000,
       allowExitOnIdle: true,
     });
 

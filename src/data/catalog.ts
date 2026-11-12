@@ -52,6 +52,13 @@ export function calculateSupplierPriceFromSelling(
   return Math.round(sellingPrice / (1 + marginPercent / 100));
 }
 
+/** Markup dari harga jual saat ini (bukan biaya supplier); tidak membulatkan ke Rp500. */
+export function calculateMarkupFromCurrentPrice(currentPrice: number, marginPercent: number): number {
+  if (!Number.isSafeInteger(currentPrice) || currentPrice <= 0) return 0;
+  const safeMargin = Math.max(5, Math.min(10, Math.round(Number(marginPercent) || DEFAULT_MARGIN_PERCENT)));
+  return Math.max(1, Math.round(currentPrice * (1 + safeMargin / 100)));
+}
+
 const toSvgUri = (svg: string) => 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.trim());
 
 export function createArtworkSvg(title: string, subtitle: string, c1: string, c2: string, iconSvg: string): string {

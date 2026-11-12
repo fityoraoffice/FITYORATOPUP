@@ -39,6 +39,7 @@ import { savePushSubscription, removePushSubscription, listPushSubscriptions } f
 import { loadVapidConfig, sendEmptyPush, isAllowedPushEndpoint } from './src/utils/webPush.js';
 import { createReview, hasReviewForOrder, listApprovedReviews, listAllReviews, setReviewStatus, deleteReview, cleanText } from './src/db/reviews.js';
 import { getEffectiveCatalog, saveCustomCatalog, sanitizeCatalog } from './src/db/catalog.js';
+import { buildAiCatalogSummary, validateAiRecommendations } from './src/utils/aiCatalogGuard.js';
 import { getSiteSettings, saveSiteSettings, sanitizeSiteSettings, getStoreRuntimeSettings, saveStoreRuntimeSettings, sanitizeStoreRuntimeSettings } from './src/db/siteSettings.js';
 
 const cliArgs = process.argv.slice(2);
@@ -1732,11 +1733,20 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       return;
     }
 
-    // O(1) instant duplicate check via high-performance index
-    const [existingEmail, existingPhone] = await Promise.all([
-      getDbUserByIdentifier(cleanEmail),
-      getDbUserByIdentifier(cleanPhone),
-    ]);
+    // O(1) instant duplicate check via high-performance index.
+    // Fail closed if the database lookup fails; never leave registration pending.
+    let existingEmail: Awaited<ReturnType<typeof getDbUserByIdentifier>>;
+    let existingPhone: Awaited<ReturnType<typeof getDbUserByIdentifier>>;
+    try {
+      [existingEmail, existingPhone] = await Promise.all([
+        getDbUserByIdentifier(cleanEmail),
+        getDbUserByIdentifier(cleanPhone),
+      ]);
+    } catch (error) {
+      console.error('[PostgreSQL] Registration duplicate check failed:', error);
+      res.status(503).json({ error: 'Database tidak dapat memeriksa akun duplikat. Pendaftaran belum dilakukan; coba lagi.' });
+      return;
+    }
     if (existingEmail || existingPhone) {
       res.status(409).json({ error: 'Email atau nomor WhatsApp sudah terdaftar.' });
       return;
@@ -1849,8 +1859,15 @@ const authorPassMatch = isAuthorPasswordMatch(password);
     // Housekeeping: drop expired session rows (indexed on expires_at); never blocks login on failure.
     await purgeExpiredSessions().catch(() => undefined);
 
-    // O(1) indexed lookup by email or phone
-    const matched = await getDbUserByIdentifier(identifier);
+    // O(1) indexed lookup by email or phone. Return a clear 503 on database failure.
+    let matched: Awaited<ReturnType<typeof getDbUserByIdentifier>>;
+    try {
+      matched = await getDbUserByIdentifier(identifier);
+    } catch (error) {
+      console.error('[PostgreSQL] Member login lookup failed:', error);
+      res.status(503).json({ error: 'Database akun sedang tidak dapat diakses. Login belum diproses; coba lagi.' });
+      return;
+    }
     if (!matched) {
       res.status(401).json({ error: 'Akun tidak ditemukan atau kata sandi salah.' });
       return;
@@ -2058,6 +2075,9 @@ const authorPassMatch = isAuthorPasswordMatch(password);
     return new GoogleGenAI({
       apiKey,
       httpOptions: {
+        // Jangan biarkan request Gemini menggantung sampai batas Vercel 300 detik.
+        timeout: 22_000,
+        retryOptions: { attempts: 1 },
         headers: {
           'User-Agent': 'fityora-store-server'
         }
@@ -2096,90 +2116,101 @@ const authorPassMatch = isAuthorPasswordMatch(password);
     }
   };
 
-  // Endpoint 1: AI Smart Budget Optimizer & Combo Recommender
+  const isAiTimeout = (error: any): boolean =>
+    /timeout|timed out|abort/i.test(`${error?.name || ''} ${error?.message || ''}`);
+
+  // Log metadata teknis saja; jangan mencatat prompt, isi chat, atau API key.
+  const aiErrorMetadata = (error: any) => ({
+    name: String(error?.name || 'Error').slice(0, 80),
+    code: String(error?.code || '').slice(0, 80),
+    status: Number.isFinite(Number(error?.status)) ? Number(error.status) : undefined,
+    timeout: isAiTimeout(error)
+  });
+
+  // Endpoint 1: rekomendasi memakai katalog live server, bukan daftar harga dari browser.
   app.post('/api/ai/recommend', async (req, res) => {
-    {
-      const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
-      if (!(await allowRateLimitedRequest(`ai-recommend:${ip}`, 20, 10 * 60 * 1000))) {
-        res.status(429).json({ error: 'Terlalu banyak permintaan dari koneksi ini. Coba lagi beberapa menit lagi.' });
-        return;
-      }
+    const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+    if (!(await allowRateLimitedRequest(`ai-recommend:${ip}`, 20, 10 * 60 * 1000))) {
+      res.status(429).json({ error: 'Terlalu banyak permintaan dari koneksi ini. Coba lagi beberapa menit lagi.' });
+      return;
     }
+
+    const budget = Number(req.body?.budget);
+    if (!Number.isSafeInteger(budget) || budget < 1 || budget > 100_000_000) {
+      res.status(400).json({ error: 'Budget harus berupa angka Rupiah yang valid.' });
+      return;
+    }
+
+    const gameOrCategory = String(req.body?.gameOrCategory || 'Semua Game & Digital')
+      .replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 100);
+    const goal = String(req.body?.goal || 'Rekomendasi yang sesuai budget')
+      .replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 160);
+
     try {
-      const { budget, gameOrCategory, goal, catalogSummary } = req.body;
+      const liveCatalog = (await getEffectiveCatalog()).products;
+      const catalogSummary = buildAiCatalogSummary(liveCatalog);
       const ai = getAiClient();
+      const prompt = `Kamu adalah asisten rekomendasi produk FityoraStore.
 
-      const prompt = `Kamu adalah "CahyoStore AI Concierge", asisten VIP pintar dari CahyoStore (FitYora Store) untuk top-up game & produk digital Indonesia.
-Data Input Pelanggan:
-- Budget Pelanggan: Rp ${Number(budget || 50000).toLocaleString('id-ID')}
-- Game / Kategori Pilihan: ${gameOrCategory || 'Semua Game & Digital'}
-- Tujuan / Kebutuhan: ${goal || 'Top up paling worth-it dan hemat'}
+` +
+        `Budget pelanggan: Rp ${budget.toLocaleString('id-ID')}
+` +
+        `Layanan yang diminati: ${gameOrCategory || 'Semua Game & Digital'}
+` +
+        `Tujuan: ${goal || 'Pilihan sesuai budget'}
 
-Daftar Produk & Harga Resmi CahyoStore:
-${JSON.stringify(catalogSummary)}
+` +
+        `Katalog live dari server (sumber kebenaran): ${JSON.stringify(catalogSummary)}
 
-Tugasmu:
-Berikan analisis cerdas dan maksimal 3 rekomendasi item/kombinasi terbaik yang muat atau paling mendekati budget pelanggan dari daftar produk di atas. Pastikan productId dan itemId persis sesuai dengan data katalog yang diberikan.`;
+` +
+        `Berikan maksimal tiga rekomendasi yang harganya tidak melebihi budget lebih dari 15%. ` +
+        `Gunakan productId dan itemId persis seperti katalog. Jangan memilih item Rp 0, ` +
+        `jangan menciptakan produk/harga/diskon, dan jangan mengubah harga dari katalog. ` +
+        `Jika tidak ada pilihan yang layak, kembalikan recommendations sebagai array kosong. ` +
+        `Jangan menyatakan pembayaran otomatis terverifikasi atau biaya pembayaran gratis.`;
 
       const response = await generateContentWithFallback(ai, {
         contents: prompt,
         config: {
+          maxOutputTokens: 900,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              headline: {
-                type: Type.STRING,
-                description: 'Judul rekomendasi singkat yang menarik dan premium.'
-              },
-              strategySummary: {
-                type: Type.STRING,
-                description: 'Penjelasan singkat mengapa kombinasi ini paling untung untuk budget pelanggan.'
-              },
+              headline: { type: Type.STRING },
+              strategySummary: { type: Type.STRING },
               recommendations: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
                     productId: { type: Type.STRING },
-                    productName: { type: Type.STRING },
                     itemId: { type: Type.STRING },
-                    itemName: { type: Type.STRING },
-                    price: { type: Type.NUMBER },
-                    valueScore: {
-                      type: Type.STRING,
-                      description: 'Contoh: 99% Worth It / Best Seller / Hemat Maksimal'
-                    },
-                    reason: {
-                      type: Type.STRING,
-                      description: 'Alasan singkat memilih nominal ini.'
-                    }
+                    valueScore: { type: Type.STRING },
+                    reason: { type: Type.STRING }
                   },
-                  required: [
-                    'productId',
-                    'productName',
-                    'itemId',
-                    'itemName',
-                    'price',
-                    'valueScore',
-                    'reason'
-                  ]
+                  required: ['productId', 'itemId', 'valueScore', 'reason']
                 }
               },
-              proTip: {
-                type: Type.STRING,
-                description: 'Tips hemat pembayaran (misalnya pakai QRIS bebas biaya admin).'
-              }
+              proTip: { type: Type.STRING }
             },
             required: ['headline', 'strategySummary', 'recommendations', 'proTip']
           }
         }
       });
 
-      res.json(safeParseJson(response.text));
+      res.setHeader('Cache-Control', 'no-store');
+      res.json(validateAiRecommendations(safeParseJson(response.text), liveCatalog, budget));
     } catch (error: any) {
-      res.status(500).json({
-        error: error?.message || 'Gagal memproses rekomendasi AI.'
+      const missingKey = !process.env.GEMINI_API_KEY;
+      const timedOut = isAiTimeout(error);
+      console.error('[Gemini] AI recommendation failed:', aiErrorMetadata(error));
+      res.status(missingKey ? 503 : timedOut ? 504 : 502).json({
+        error: missingKey
+          ? 'Gemini belum diaktifkan. Author perlu memeriksa GEMINI_API_KEY di Environment Variables Vercel.'
+          : timedOut
+            ? 'Asisten AI tidak merespons dalam batas waktu. Coba lagi atau gunakan rekomendasi lokal.'
+            : 'Rekomendasi AI sedang tidak tersedia. Coba lagi beberapa saat.'
       });
     }
   });
@@ -2254,6 +2285,7 @@ KATALOG LIVE (sumber kebenaran): ${JSON.stringify(catalogSummary)}${orderContext
         contents: `Riwayat Singkat: ${JSON.stringify(history || [])}\nPertanyaan Pelanggan: ${message}`,
         config: {
           systemInstruction,
+          maxOutputTokens: 800,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
@@ -2283,10 +2315,14 @@ KATALOG LIVE (sumber kebenaran): ${JSON.stringify(catalogSummary)}${orderContext
       res.json(safeParseJson(response.text));
     } catch (error: any) {
       const missingKey = !process.env.GEMINI_API_KEY;
-      res.status(missingKey ? 503 : 500).json({
+      const timedOut = isAiTimeout(error);
+      console.error('[Gemini] AI chat failed:', aiErrorMetadata(error));
+      res.status(missingKey ? 503 : timedOut ? 504 : 502).json({
         error: missingKey
-          ? 'Gemini belum diaktifkan. Author perlu mengatur GEMINI_API_KEY di Environment Variables Vercel.'
-          : 'Gemini sedang tidak dapat menjawab. Coba lagi beberapa saat.'
+          ? 'Gemini belum diaktifkan. Author perlu memeriksa GEMINI_API_KEY di Environment Variables Vercel.'
+          : timedOut
+            ? 'Asisten AI tidak merespons dalam batas waktu. Coba lagi sebentar.'
+            : 'Gemini sedang tidak dapat menjawab. Coba lagi beberapa saat.'
       });
     }
   });
