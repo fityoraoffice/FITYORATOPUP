@@ -39,7 +39,7 @@ import { savePushSubscription, removePushSubscription, listPushSubscriptions } f
 import { loadVapidConfig, sendEmptyPush, isAllowedPushEndpoint } from './src/utils/webPush.js';
 import { createReview, hasReviewForOrder, listApprovedReviews, listAllReviews, setReviewStatus, deleteReview, cleanText } from './src/db/reviews.js';
 import { getEffectiveCatalog, saveCustomCatalog, sanitizeCatalog } from './src/db/catalog.js';
-import { getSiteSettings, saveSiteSettings, sanitizeSiteSettings } from './src/db/siteSettings.js';
+import { getSiteSettings, saveSiteSettings, sanitizeSiteSettings, getStoreRuntimeSettings, saveStoreRuntimeSettings, sanitizeStoreRuntimeSettings } from './src/db/siteSettings.js';
 
 const cliArgs = process.argv.slice(2);
 const portFlagIdx = cliArgs.indexOf('--port');
@@ -807,6 +807,32 @@ const authorPassMatch = isAuthorPasswordMatch(password);
     }
   });
 
+  // Status toko/pengumuman publik. Perubahan hanya dapat dilakukan sesi Author.
+  app.get('/api/store-status', async (_req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ok: true, settings: await getStoreRuntimeSettings() });
+    } catch (error) {
+      console.error('[PostgreSQL] Store status read failed:', error);
+      res.setHeader('Cache-Control', 'no-store');
+      res.status(503).json({ ok: false, error: 'Status toko belum dapat dimuat.' });
+    }
+  });
+
+  app.put('/api/admin/store-status', async (req, res) => {
+    if (!requireAdminSession(req, res)) return;
+    const settings = sanitizeStoreRuntimeSettings(req.body);
+    if (!settings) { res.status(400).json({ error: 'Format status toko tidak valid.' }); return; }
+    try {
+      const updatedAt = await saveStoreRuntimeSettings(settings);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ ok: true, settings, updatedAt });
+    } catch (error) {
+      console.error('[PostgreSQL] Store status save failed:', error);
+      res.status(503).json({ error: 'Status toko gagal disimpan ke database.' });
+    }
+  });
+
   // Katalog & harga: dibaca semua pengunjung, hanya Author yang bisa mengubah. Server juga memakainya
   // untuk memvalidasi total order, jadi tampilan buyer dan tagihan selalu sama.
   app.get('/api/catalog', async (_req, res) => {
@@ -953,12 +979,10 @@ const authorPassMatch = isAuthorPasswordMatch(password);
   // Privileged operations require the server-managed admin session.
 
   // Automated Live Website ZIP Generator & Exporter
-  const ZIP_OUTPUT_PATH = path.join(process.cwd(), 'public', 'CahyoStore-Full-Website-Files.zip');
-  const ZIP_DOWNLOADS_PATH = path.join(process.cwd(), 'public', 'downloads', 'CahyoStore-Full-Website-Files.zip');
   let lastZipGeneratedAt: string = '';
   let lastZipSizeBytes: number = 0;
 
-  const buildAndSaveLiveWebsiteZip = async (): Promise<Buffer> => {
+  const buildAndSaveLiveWebsiteZip = async (profile: 'full' | 'vercel' | 'supabase' = 'full'): Promise<Buffer> => {
     const zip = new JSZip();
     const rootDir = process.cwd();
     const excludedDirs = new Set([
@@ -970,10 +994,6 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       '.turbo'
     ]);
     const excludedFiles = new Set([
-      'bun.lock',
-      'package-lock.json',
-      'yarn.lock',
-      'pnpm-lock.yaml',
       '.DS_Store',
       'users-db.json',
       'orders-db.json',
@@ -1008,6 +1028,9 @@ const authorPassMatch = isAuthorPasswordMatch(password);
           if (excludedFiles.has(name) || name.endsWith('.zip') || looksLikeSecret || name.endsWith('.tmp')) continue;
           const fullPath = path.join(currentPath, name);
           const zipEntryPath = relativePrefix ? `${relativePrefix}/${name}` : name;
+          const normalizedPath = zipEntryPath.replace(/\\/g, '/');
+          if (profile === 'vercel' && /^(supabase|docs|tests)\//.test(normalizedPath)) continue;
+          if (profile === 'supabase' && /^tests\//.test(normalizedPath)) continue;
           try {
             const fileBuffer = fs.readFileSync(fullPath);
             zip.file(zipEntryPath, fileBuffer);
@@ -1028,8 +1051,9 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       author: 'Author CahyoStore (fityorastoreoffice@gmail.com)',
       supportWhatsapp: '08139525985',
       updatedAt: buildTimestamp,
-      autoUpdated: true,
-      description: 'Source CahyoStore dengan Express Function di Vercel dan Supabase PostgreSQL untuk penyimpanan utama.',
+      packageProfile: profile,
+      builtWhenDownloaded: true,
+      description: `Paket ${profile} disusun saat permintaan download dari file yang tersedia pada deployment ini.`,
       instructions: [
         '1. Supabase SQL Editor: instalasi baru jalankan supabase/schema.sql; database lama jalankan migrasi berurutan sampai 20261110_tahap6_secure_and_tables.sql.',
         '2. Atur DATABASE_URL, ADMIN_EMAIL, dan ADMIN_PASSWORD sebagai Environment Variables Secret di Vercel.',
@@ -1039,6 +1063,8 @@ const authorPassMatch = isAuthorPasswordMatch(password);
     };
 
     zip.file('VERSION-METADATA.json', JSON.stringify(versionMeta, null, 2));
+    zip.file('README-PAKET.txt', `Paket: ${profile.toUpperCase()}\nDibuat: ${buildTimestamp}\n\nIsi ZIP berasal dari file yang tersedia pada deployment Production yang sedang melayani permintaan ini. Untuk source terbaru, pastikan commit terbaru sudah berhasil dideploy sebelum mengunduh ulang.\n\nJangan menaruh API key, password, atau file .env asli di dalam arsip.\n`);
+    if (profile === 'supabase') zip.file('SUPABASE-CHECKLIST.txt', 'Periksa supabase/schema.sql dan supabase/migrations sebelum menjalankan SQL. Jalankan migrasi berurutan dan jangan mengulang migrasi yang sudah diterapkan.\n');
     zip.file(
       'README-CAHYOSTORE-RESMI.txt',
       `============================================================\n` +
@@ -1049,7 +1075,7 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       `Email: fityorastoreoffice@gmail.com\n` +
       `WhatsApp: 08139525985\n\n` +
       `STATUS SISTEM:\n` +
-      `- Kode sumber 100% tersinkronisasi otomatis dengan pembaruan dan perbaikan terkini.\n` +
+      `- Arsip dibuat dari berkas yang tersedia pada deployment saat tombol unduh ditekan.\n` +
       `- QRIS statis GoPay Merchant; konfirmasi pembayaran dilakukan manual oleh Author.\n` +
       `- Manajemen sesi tersimpan di Supabase PostgreSQL (token disimpan dalam bentuk hash).\n` +
       `- Navigasi mobile responsif dan teroptimasi rapi.\n\n` +
@@ -1066,26 +1092,11 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       compressionOptions: { level: 6 }
     });
 
-    const ZIP_VERCEL_PATH = path.join(process.cwd(), 'public', 'CahyoStore-Vercel-Deploy.zip');
-    const ZIP_VERCEL_DOWNLOADS_PATH = path.join(process.cwd(), 'public', 'downloads', 'CahyoStore-Vercel-Deploy.zip');
-    const ZIP_SUPABASE_PATH = path.join(process.cwd(), 'public', 'CahyoStore-Supabase-Vercel.zip');
-    const ZIP_SUPABASE_DOWNLOADS_PATH = path.join(process.cwd(), 'public', 'downloads', 'CahyoStore-Supabase-Vercel.zip');
-
-    try {
-      fs.writeFileSync(ZIP_OUTPUT_PATH, zipBuffer);
-      fs.writeFileSync(ZIP_VERCEL_PATH, zipBuffer);
-      fs.writeFileSync(ZIP_SUPABASE_PATH, zipBuffer);
-      const downloadsDir = path.dirname(ZIP_DOWNLOADS_PATH);
-      if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
-      fs.writeFileSync(ZIP_DOWNLOADS_PATH, zipBuffer);
-      fs.writeFileSync(ZIP_VERCEL_DOWNLOADS_PATH, zipBuffer);
-      fs.writeFileSync(ZIP_SUPABASE_DOWNLOADS_PATH, zipBuffer);
-      lastZipGeneratedAt = buildTimestamp;
-      lastZipSizeBytes = zipBuffer.length;
-      console.log(`[AutoZip] File ZIP website, Vercel & Supabase otomatis diperbarui: ${(zipBuffer.length / 1024).toFixed(1)} KB pada ${buildTimestamp}`);
-    } catch (e) {
-      console.warn('[AutoZip] Gagal menyimpan file zip ke disk:', e);
-    }
+    // Vercel serverless filesystem is not a persistent backup destination.
+    // Return the freshly generated archive directly in the authenticated response.
+    lastZipGeneratedAt = buildTimestamp;
+    lastZipSizeBytes = zipBuffer.length;
+    console.log(`[AutoZip] Paket ${profile} siap diunduh: ${(zipBuffer.length / 1024).toFixed(1)} KB pada ${buildTimestamp}`);
 
     return zipBuffer;
   };
@@ -1093,13 +1104,14 @@ const authorPassMatch = isAuthorPasswordMatch(password);
   // Endpoint: Get Live Info of Auto-Updated Website ZIP File
   app.get('/api/export/website-zip/info', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    const size = lastZipSizeBytes || (fs.existsSync(ZIP_OUTPUT_PATH) ? fs.statSync(ZIP_OUTPUT_PATH).size : 820000);
+    const size = lastZipSizeBytes;
     res.json({
       ok: true,
-      lastUpdated: lastZipGeneratedAt || new Date().toISOString(),
+      lastUpdated: lastZipGeneratedAt || null,
       sizeBytes: size,
-      sizeFormatted: `${(size / 1024).toFixed(1)} KB`,
-      autoUpdateActive: true,
+      sizeFormatted: size ? `${(size / 1024).toFixed(1)} KB` : 'Belum dibuat',
+      buildOnDownload: true,
+      autoUpdateActive: false,
       vercelReady: true,
       supabaseReady: true
     });
@@ -1130,7 +1142,7 @@ const authorPassMatch = isAuthorPasswordMatch(password);
   app.all('/api/export/vercel-zip', async (req, res) => {
     if (!requireAdminSession(req, res)) return;
     try {
-      const zipBuffer = await buildAndSaveLiveWebsiteZip();
+      const zipBuffer = await buildAndSaveLiveWebsiteZip('vercel');
 
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -1150,7 +1162,7 @@ const authorPassMatch = isAuthorPasswordMatch(password);
   app.all('/api/export/supabase-zip', async (req, res) => {
     if (!requireAdminSession(req, res)) return;
     try {
-      const zipBuffer = await buildAndSaveLiveWebsiteZip();
+      const zipBuffer = await buildAndSaveLiveWebsiteZip('supabase');
 
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
@@ -1282,6 +1294,19 @@ const authorPassMatch = isAuthorPasswordMatch(password);
       res.status(429).json({ error: 'Terlalu banyak pembuatan invoice dari koneksi ini. Coba lagi nanti.' });
       return;
     }
+    // Fail closed: status pemeliharaan dibaca dari database server, bukan dari browser.
+    try {
+      const storeStatus = await getStoreRuntimeSettings();
+      if (!storeStatus.storeOpen24h) {
+        res.status(503).json({ error: storeStatus.maintenanceMessage || 'Toko sedang dalam pemeliharaan. Pesanan sementara ditutup.' });
+        return;
+      }
+    } catch (error) {
+      console.error('[PostgreSQL] Store status check failed before order creation:', error);
+      res.status(503).json({ error: 'Status toko belum dapat diverifikasi. Pesanan belum dibuat; coba lagi setelah server pulih.' });
+      return;
+    }
+
     const body = req.body || {};
     const id = String(body.id || '').trim().toUpperCase();
     if (!/^CS-[A-Z0-9-]{5,40}$/.test(id)) {
@@ -2173,13 +2198,25 @@ Berikan analisis cerdas dan maksimal 3 rekomendasi item/kombinasi terbaik yang m
       return;
     }
     try {
-      const { message, history, catalogSummary } = req.body;
+    const message = String(req.body?.message ?? '').trim();
+      if (!message) { res.status(400).json({ error: 'Tulis pertanyaan terlebih dahulu.' }); return; }
+      const history = Array.isArray(req.body?.history)
+        ? req.body.history.slice(-6).map((entry: any) => ({
+            role: entry?.role === 'assistant' ? 'assistant' : 'user',
+            text: String(entry?.text ?? '').slice(0, 700)
+          }))
+        : [];
+      const liveCatalog = (await getEffectiveCatalog()).products;
+      const catalogSummary = liveCatalog.map((product) => ({
+        productId: product.id, productName: product.name, category: product.category,
+        items: product.items.map((item) => ({ itemId: item.id, itemName: item.name, price: item.price }))
+      }));
       const ai = getAiClient();
 
       // Check if user message mentions an Order ID (e.g. CS-12345)
       const orderMatch = String(message || '')
         .toUpperCase()
-        .match(/\bCS-\d{4,6}\b/);
+        .match(/\bCS-[A-Z0-9-]{5,40}\b/);
       let orderContext = '';
       if (orderMatch) {
         const foundOrder = await getDbOrderById(orderMatch[0]);
@@ -2190,26 +2227,28 @@ Berikan analisis cerdas dan maksimal 3 rekomendasi item/kombinasi terbaik yang m
         }
       }
 
-      const systemInstruction = `Kamu adalah "FitYora AI VIP Assistant", asisten kecerdasan buatan resmi CahyoStore (FitYora Store).
-Toko melayani 28+ produk top up game & digital:
-1. Game Mobile: Mobile Legends (MLBB), Free Fire (FF), PUBG Mobile, Honor of Kings (HOK), Call of Duty Mobile (CODM), Genshin Impact, Honkai Star Rail (HSR), Zenless Zone Zero (ZZZ), Super Sus, FC Mobile, eFootball.
-2. PC & Konsol: Point Blank (PB Cash Zepetto), Valorant (VP), Roblox (Robux), Steam Wallet IDR, PlayStation Network (PSN / PS Plus).
-3. Utilitas & Digital: Token Listrik PLN (Prabayar 20rb - 1jt), Pulsa Seluler (Telkomsel, Indosat, XL, Axis, Tri, Smartfren), Paket Data Kuota Internet, Saldo E-Wallet (DANA, OVO, GoPay, ShopeePay, LinkAja), Voucher Google Play.
-4. Aplikasi Streaming & Sosmed: Netflix (1 & 3 Bulan, 4K UHD), Spotify Premium, YouTube Premium, Canva Pro, Vidio Platinum/Diamond, Koin TikTok, Followers & Likes Instagram.
+      const systemInstruction = `Kamu adalah FitYora AI Assistant, asisten pelanggan FityoraStore.
+Jawab pertanyaan umum dengan bahasa Indonesia yang natural, sopan, jelas, dan tidak bertele-tele. Pembeli boleh bertanya tentang layanan toko maupun pengetahuan umum sehari-hari yang aman.
 
-Panduan Layanan:
-- WhatsApp Admin Resmi: 08139525985 (a/n CAHYO)
-- Instagram: @fityoraa
-- Metode Pembayaran: QRIS Resmi GoPay Merchant (NMID: ID1026469444966) mendukung BCA, DANA, GoPay, OVO, ShopeePay, Mandiri, BRI, BNI.
-- Waktu Proses: 1 – 3 menit setelah pembayaran terkonfirmasi.
-- Keamanan: 100% legal dan bergaransi resmi tanpa perlu kata sandi / password akun pelanggan.
-- Katalog Produk & Nominal Aktif: ${JSON.stringify(catalogSummary)}${orderContext}
+KONTEKS TOKO:
+- Katalog di bawah adalah satu-satunya sumber harga dan nominal. Jangan membuat harga, stok, diskon, atau nama produk yang tidak ada di katalog.
+- Jika nominal masih Rp 0, jelaskan bahwa harga belum diatur Author dan jangan menyarankan pembelian.
+- Pembayaran QRIS saat ini bersifat statis dan diperiksa manual oleh Author melalui aplikasi GoPay Merchant. Jangan menyatakan pembayaran otomatis terverifikasi atau pesanan otomatis terkirim.
+- Pembeli hanya boleh membayar setelah invoice berhasil tersimpan di server. Jika invoice gagal dibuat, sarankan jangan membayar.
+- Jangan menjanjikan waktu pengiriman pasti atau biaya admin gratis kecuali data toko secara eksplisit menyatakannya.
+- WhatsApp Admin resmi: 08139525985.
 
-Aturan Respon:
-1. Jawab pertanyaan pelanggan dalam Bahasa Indonesia yang ramah, sopan, natural, ringkas, dan sangat membantu.
-2. Jika pelanggan menanyakan harga atau game tertentu, sebutkan nominal dan harganya dalam format Rupiah, lalu isi suggestedProductId dan suggestedItemId sesuai katalog agar tombol aksi instan muncul.
-3. Jika pelanggan menanyakan cara pesan atau cara bayar, jelaskan 4 langkah mudah: Pilih produk -> Isi ID Akun -> Pilih Nominal -> Bayar via QRIS/E-Wallet.
-4. Jangan pernah menolak pertanyaan pelanggan terkait produk atau toko. Selalu berikan solusi terbaik.`;
+ATURAN JAWABAN:
+1. Jawab sesuai pertanyaan. Untuk pertanyaan umum, berikan jawaban umum yang bermanfaat dan akui bila tidak yakin.
+2. Untuk harga, gunakan nilai dari katalog dan tulis nominal Rupiah dengan rapi. Jika sesuai, kembalikan productId dan itemId persis dari katalog.
+3. Untuk cara pesan, jelaskan: pilih layanan, isi ID/nomor tujuan, pilih nominal, buat invoice, lalu ikuti instruksi pembayaran.
+4. Untuk status pesanan, gunakan konteks status server yang tersedia. Jangan menebak status.
+5. Jangan meminta kata sandi, OTP, PIN, CVV, API key, atau kredensial akun pelanggan.
+6. Jangan mengarang bahwa kamu telah melakukan tindakan di luar chat.
+7. Format jawaban sebagai teks biasa yang rapi. Gunakan paragraf pendek dan daftar dengan simbol • jika perlu. Hindari tanda Markdown seperti **, ##, dan backtick.
+8. Bila pertanyaan tidak aman atau meminta data pribadi orang lain, tolak dengan singkat dan berikan alternatif yang aman.
+
+KATALOG LIVE (sumber kebenaran): ${JSON.stringify(catalogSummary)}${orderContext}`;
 
       const response = await generateContentWithFallback(ai, {
         contents: `Riwayat Singkat: ${JSON.stringify(history || [])}\nPertanyaan Pelanggan: ${message}`,
@@ -2243,8 +2282,11 @@ Aturan Respon:
 
       res.json(safeParseJson(response.text));
     } catch (error: any) {
-      res.status(500).json({
-        error: error?.message || 'Gagal menghubungi asisten AI.'
+      const missingKey = !process.env.GEMINI_API_KEY;
+      res.status(missingKey ? 503 : 500).json({
+        error: missingKey
+          ? 'Gemini belum diaktifkan. Author perlu mengatur GEMINI_API_KEY di Environment Variables Vercel.'
+          : 'Gemini sedang tidak dapat menjawab. Coba lagi beberapa saat.'
       });
     }
   });

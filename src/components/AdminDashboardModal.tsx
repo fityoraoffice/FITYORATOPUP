@@ -546,6 +546,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       return true;
     }
   });
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string>('Toko sedang dalam pemeliharaan. Silakan kembali beberapa saat lagi.');
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetch('/api/store-status', { cache: 'no-store', credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const settings = json?.settings;
+        if (cancelled || !settings) return;
+        setAuthorAnnouncementEnabled(Boolean(settings.announcementEnabled));
+        setAuthorAnnouncementBadge(String(settings.announcementBadge || '📢 INFO RESMI TOKO'));
+        setAuthorAnnouncementText(String(settings.announcementText || ''));
+        setStoreOpen24h(settings.storeOpen24h !== false);
+        setMaintenanceMessage(String(settings.maintenanceMessage || 'Toko sedang dalam pemeliharaan. Silakan kembali beberapa saat lagi.'));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
   const [profitMarginPct, setProfitMarginPct] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem('cahyostore_author_margin_pct_v1'));
@@ -562,23 +581,43 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [checkingPing, setCheckingPing] = useState<boolean>(false);
   const restoreJsonInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleSaveAuthorStudioConfig = () => {
+  const handleSaveAuthorStudioConfig = async () => {
     const payload = {
-      enabled: authorAnnouncementEnabled,
-      badge: authorAnnouncementBadge.trim() || '🔥 PROMO AUTHOR VIP',
-      text:
-        authorAnnouncementText.trim() ||
-        'Top Up Game, Streaming & Pulsa Otomatis 24 Jam Nonstop!',
+      announcementEnabled: authorAnnouncementEnabled,
+      announcementBadge: authorAnnouncementBadge.trim() || '📢 INFO RESMI TOKO',
+      announcementText: authorAnnouncementText.trim(),
       storeOpen24h,
-      updatedAt: new Date().toISOString()
+      maintenanceMessage: maintenanceMessage.trim() || 'Toko sedang dalam pemeliharaan. Silakan kembali beberapa saat lagi.'
     };
     try {
-      localStorage.setItem('cahyostore_author_announcement_v1', JSON.stringify(payload));
-      localStorage.setItem('cahyostore_store_open_24h_v1', String(storeOpen24h));
-      localStorage.setItem('cahyostore_author_margin_pct_v1', String(profitMarginPct));
-      window.dispatchEvent(new CustomEvent('cahyostore-author-config-updated', { detail: payload }));
-    } catch {}
-    showToast('Pengaturan Studio Author & Pengumuman Toko berhasil disimpan!', 'success');
+      let headers = getAdminAuthHeaders();
+      if (!headers['Authorization']) {
+        await getOrRefreshAdminToken();
+        headers = getAdminAuthHeaders();
+      }
+      headers['Content-Type'] = 'application/json';
+      const res = await fetch('/api/admin/store-status', {
+        method: 'PUT', headers, credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data?.error || 'Pengaturan Studio gagal disimpan ke server. Login Author ulang lalu coba lagi.', 'error');
+        return;
+      }
+      try {
+        localStorage.setItem('cahyostore_author_announcement_v1', JSON.stringify({
+          enabled: payload.announcementEnabled, badge: payload.announcementBadge,
+          text: payload.announcementText, storeOpen24h: payload.storeOpen24h
+        }));
+        localStorage.setItem('cahyostore_store_open_24h_v1', String(storeOpen24h));
+        localStorage.setItem('cahyostore_author_margin_pct_v1', String(profitMarginPct));
+        window.dispatchEvent(new CustomEvent('cahyostore-author-config-updated', { detail: payload }));
+      } catch {}
+      showToast('Studio Author tersimpan di server dan berlaku untuk semua pengunjung.', 'success');
+    } catch {
+      showToast('Server tidak dapat dihubungi. Pengaturan Studio belum tersimpan; coba lagi.', 'error');
+    }
   };
 
   const handleCheckServerHeartbeat = async () => {
@@ -1473,10 +1512,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       return {
         ...p,
         items: p.items.map((it) => {
-          const base = it.price > 0 ? it.price : 1000;
+          const base = Number(it.price);
+          if (!Number.isFinite(base) || base <= 0) return it;
           return {
             ...it,
-            price: Math.max(0, Math.round((base * factor) / 500) * 500)
+            price: Math.max(1, Math.round(base * factor))
           };
         })
       };
@@ -2667,6 +2707,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               className="w-16 bg-slate-900 border border-cyan-500/40 rounded-xl px-2.5 py-1.5 text-center font-extrabold text-cyan-300"
                             />
                           </div>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-slate-950/90 border border-amber-500/25 space-y-2">
+                          <label className="font-bold text-white block" htmlFor="author-maintenance-message">Pesan yang tampil saat Maintenance</label>
+                          <textarea
+                            id="author-maintenance-message"
+                            value={maintenanceMessage}
+                            onChange={(e) => setMaintenanceMessage(e.target.value.slice(0, 240))}
+                            maxLength={240}
+                            rows={2}
+                            placeholder="Contoh: Sistem sedang diperbarui. Pesanan sementara ditutup."
+                            className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                          />
+                          <p className="text-[10px] text-slate-500">Saat status toko diubah ke Maintenance, checkout pelanggan akan ditolak oleh server sampai toko dibuka kembali.</p>
                         </div>
 
                         <button
@@ -4555,10 +4609,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             </span>
                             <div>
                               <span className="text-xs font-extrabold text-white">
-                                SINKRONISASI FILE ZIP: OTOMATIS TERUPDATE (LIVE REAL-TIME)
+                                FILE ZIP: DIRAKIT SAAT DIUNDUH
                               </span>
                               <p className="text-[10px] text-emerald-300">
-                                Setiap perubahan kode, fitur, skema SQL, atau perbaikan bug otomatis langsung terkemas ke dalam file ZIP ini.
+                                Paket dirakit dari file yang tersedia pada deployment Production aktif. Setelah commit terbaru selesai dideploy, unduh ulang untuk mendapat source versi terbaru.
                               </p>
                             </div>
                           </div>

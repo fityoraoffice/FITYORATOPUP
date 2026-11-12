@@ -142,6 +142,23 @@ interface DraftData {
   payId: string | null;
 }
 
+interface PublicStoreRuntimeStatus {
+  announcementEnabled: boolean;
+  announcementBadge: string;
+  announcementText: string;
+  storeOpen24h: boolean;
+  maintenanceMessage: string;
+}
+
+const DEFAULT_PUBLIC_STORE_RUNTIME_STATUS: PublicStoreRuntimeStatus = {
+  announcementEnabled: false,
+  announcementBadge: '📢 INFO RESMI TOKO',
+  announcementText: '',
+  storeOpen24h: true,
+  maintenanceMessage: 'Toko sedang dalam pemeliharaan. Silakan kembali beberapa saat lagi.'
+};
+
+
 const CHECKOUT_EXPIRY_SECONDS = 2 * 60; // 2 minutes countdown (120 seconds)
 
 interface OrderSnapshot {
@@ -220,6 +237,34 @@ export default function App() {
     return normalizeProducts(INITIAL_PRODUCTS_DATA);
   });
   const [fx, setFx] = useState<FxConfig>(() => loadFxConfig());
+  const [storeRuntimeStatus, setStoreRuntimeStatus] = useState<PublicStoreRuntimeStatus>(DEFAULT_PUBLIC_STORE_RUNTIME_STATUS);
+
+  useEffect(() => {
+    let cancelled = false;
+    const syncStoreRuntimeStatus = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch('/api/store-status', { cache: 'no-store', credentials: 'same-origin' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json?.settings) {
+          setStoreRuntimeStatus({ ...DEFAULT_PUBLIC_STORE_RUNTIME_STATUS, ...json.settings });
+        }
+      } catch {
+        // Status lama tetap tampil; endpoint order server tetap memeriksa maintenance sebelum membuat invoice.
+      }
+    };
+    void syncStoreRuntimeStatus();
+    const timer = window.setInterval(syncStoreRuntimeStatus, 30000);
+    const onVisible = () => { if (!document.hidden) void syncStoreRuntimeStatus(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
   const fxRef = useRef<FxConfig>(fx);
   fxRef.current = fx;
   const lastFxEditAtRef = useRef<number>(0);
@@ -2652,6 +2697,10 @@ export default function App() {
 
   const handleCheckoutCart = async () => {
     if (cart.length === 0 || submitting) return;
+    if (!storeRuntimeStatus.storeOpen24h) {
+      showToast(storeRuntimeStatus.maintenanceMessage || 'Toko sedang Maintenance. Checkout sementara ditutup.', 'error');
+      return;
+    }
     if (!selectedPayment) {
       showToast('Pilih metode pembayaran di troli terlebih dahulu!', 'error');
       return;
@@ -2878,6 +2927,10 @@ ${itemsLines}
 
   const validateAndSubmitOrder = () => {
     if (!selectedProduct) return;
+    if (!storeRuntimeStatus.storeOpen24h) {
+      showToast(storeRuntimeStatus.maintenanceMessage || 'Toko sedang Maintenance. Checkout sementara ditutup.', 'error');
+      return;
+    }
 
     const cleanUserId = userId.trim();
     const cleanZoneId = zoneId.trim();
@@ -3255,12 +3308,12 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
                 <span className="font-extrabold text-lg tracking-tight text-white flex items-center">
                   Fityora<span className="gradient-text">Store</span>
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-[10px] font-extrabold text-emerald-400 tracking-wide">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-extrabold tracking-wide ${storeRuntimeStatus.storeOpen24h ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'bg-amber-500/15 border-amber-500/40 text-amber-300'}`}>
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-80" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                    <span className={`absolute inline-flex h-full w-full rounded-full opacity-60 ${storeRuntimeStatus.storeOpen24h ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${storeRuntimeStatus.storeOpen24h ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                   </span>
-                  <span>Online 24 Jam</span>
+                  <span>{storeRuntimeStatus.storeOpen24h ? 'Online 24 Jam' : 'Maintenance'}</span>
                 </span>
               </div>
               <span className="text-[10px] tracking-wider uppercase text-slate-400 -mt-0.5 font-semibold">
@@ -3334,6 +3387,23 @@ ${currentUser ? `👑 *Member* : *${currentUser.name}* (${currentUser.id})\n` : 
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-8 flex-1 w-full space-y-8">
+        {storeRuntimeStatus.announcementEnabled && storeRuntimeStatus.announcementText && (
+          <div className="rounded-2xl border border-amber-400/35 bg-amber-500/10 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-2.5">
+            <span className="shrink-0 rounded-lg bg-amber-500/15 border border-amber-400/30 px-2.5 py-1 text-[10px] font-extrabold text-amber-200">{storeRuntimeStatus.announcementBadge}</span>
+            <p className="text-xs sm:text-sm text-slate-100 leading-relaxed break-words">{storeRuntimeStatus.announcementText}</p>
+          </div>
+        )}
+        {!storeRuntimeStatus.storeOpen24h && (
+          <div role="status" className="rounded-2xl border border-amber-500/45 bg-amber-950/45 p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-extrabold text-amber-200">Toko sedang Maintenance</p>
+              <p className="text-xs leading-relaxed text-amber-100/90">{storeRuntimeStatus.maintenanceMessage}</p>
+              <p className="text-[10px] text-amber-200/70">Katalog masih dapat dilihat, tetapi checkout sementara dinonaktifkan.</p>
+            </div>
+          </div>
+        )}
+
         {/* Banner / Hero Section */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}

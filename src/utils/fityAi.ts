@@ -108,7 +108,7 @@ export function fityBotAnalyzeAndReply(
         'CahyoStore mendukung metode pembayaran terlengkap dan instan:\n\n' +
         '1. **QRIS Resmi GoPay Merchant (NMID: ID1026469444966)**: Mendukung scan dari **semua e-wallet** (GoPay, DANA, OVO, ShopeePay, LinkAja) dan **Mobile Banking** (BCA, Mandiri, BRI, BNI, CIMB, BSI).\n' +
         '2. **Transfer E-Wallet Langsung**: GoPay, DANA, OVO, ShopeePay ke akun merchant resmi.\n\n' +
-        'Semua nominal transaksi langsung tercatat secara otomatis dan diproses cepat!'
+        'Pembayaran QRIS saat ini diperiksa manual oleh Author melalui aplikasi GoPay Merchant. Status pembayaran tidak otomatis terverifikasi. Pastikan invoice berhasil tersimpan di server sebelum melakukan pembayaran.'
     };
   }
 
@@ -313,6 +313,10 @@ export function fityBotAnalyzeAndReply(
 
   // If a specific product was matched
   if (matchedProduct && matchedProduct.items.length > 0) {
+    const availableItems = matchedProduct.items.filter((item) => Number.isFinite(item.price) && item.price > 0);
+    if (availableItems.length === 0) {
+      return { reply: `Harga ${matchedProduct.name} belum ditetapkan Author. Silakan cek kembali nanti atau hubungi WhatsApp Admin ${ADMIN_WHATSAPP_NUMBER}.` };
+    }
     // Check if user requested a specific nominal or budget (e.g. 50rb, 100k, 20rb, mingguan, pass)
     const budgetExtract = lower.match(/(\d+)\s*(rb|ribu|k)?/);
     let requestedBudget = 0;
@@ -322,29 +326,29 @@ export function fityBotAnalyzeAndReply(
       requestedBudget = unit === 'k' || unit === 'rb' || unit === 'ribu' ? num * 1000 : num < 1000 ? num * 1000 : num;
     }
 
-    let recommendedItem = matchedProduct.items[0];
+    let recommendedItem = availableItems[0];
     if (requestedBudget > 0) {
       // Find closest item under or around budget
-      const underBudget = matchedProduct.items.filter((i) => i.price <= requestedBudget * 1.15);
+      const underBudget = availableItems.filter((i) => i.price <= requestedBudget * 1.15);
       if (underBudget.length > 0) {
         underBudget.sort((a, b) => b.price - a.price);
         recommendedItem = underBudget[0];
       }
     } else if (lower.includes('pass') || lower.includes('mingguan') || lower.includes('weekly')) {
-      const passItem = matchedProduct.items.find((i) => /pass|mingguan|weekly|membership/i.test(i.name));
+      const passItem = availableItems.find((i) => /pass|mingguan|weekly|membership/i.test(i.name));
       if (passItem) recommendedItem = passItem;
     } else {
       // Best-seller or medium popular nominal
-      const best = matchedProduct.items.find((i) => (i as any).tag === 'best-seller');
-      recommendedItem = best || matchedProduct.items[Math.min(2, matchedProduct.items.length - 1)];
+      const best = availableItems.find((i) => (i as any).tag === 'best-seller');
+      recommendedItem = best || availableItems[Math.min(2, availableItems.length - 1)];
     }
 
-    const priceListText = matchedProduct.items
+    const priceListText = availableItems
       .slice(0, 4)
       .map((it) => `• ${it.name}: **Rp ${it.price.toLocaleString('id-ID')}**`)
       .join('\n');
 
-    const suggestedActions: BotSuggestedAction[] = matchedProduct.items.slice(0, 3).map((it) => ({
+    const suggestedActions: BotSuggestedAction[] = availableItems.slice(0, 3).map((it) => ({
       productId: matchedProduct!.id,
       productName: matchedProduct!.name,
       itemId: it.id,
@@ -393,11 +397,8 @@ export function fityBotAnalyzeAndReply(
   // Default helpful response
   return {
     reply:
-      'Halo! Saya **FitYora AI Assistant** siap membantu Anda 24 jam ✨\n\n' +
-      '• **Tanya Harga**: Ketik nama layanan seperti *"Harga Diamond MLBB"*, *"Token PLN 50rb"*, *"Robux Roblox"*, atau *"Netflix 1 Bulan"*.\n' +
-      '• **Lacak Pesanan**: Ketik ID transaksi Anda (contoh: *CS-123456*).\n' +
-      '• **Panduan Order**: Ketik *"cara beli"* atau *"cara bayar QRIS"*.\n' +
-      '• **Butuh Bantuan Langsung**: Ketik *"Hubungi Admin"* untuk chat WhatsApp resmi!'
+      'Maaf, saya belum bisa memahami pertanyaan itu dari informasi toko yang tersedia.\n\n' +
+      'Saya tetap bisa membantu cek harga dari katalog, panduan pemesanan, status pesanan dengan ID transaksi, atau menghubungkan Anda ke WhatsApp Admin 08139525985. Untuk pertanyaan umum, coba tulis pertanyaan dengan kalimat yang lebih spesifik.'
   };
 }
 

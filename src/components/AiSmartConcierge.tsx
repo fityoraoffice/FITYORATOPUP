@@ -796,7 +796,7 @@ export const AiSmartConcierge: React.FC<AiSmartConciergeProps> = ({
                               </div>
                             </div>
 
-                            <p className="leading-relaxed whitespace-pre-line">{m.text}</p>
+                            <p className="leading-relaxed whitespace-pre-line break-words">{m.text.replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '').replace(/^\s*#{1,6}\s*/gm, '')}</p>
 
                             {/* Multi-Item Interactive Cards inside Chat */}
                             {m.recommendations && m.recommendations.length > 0 && (
