@@ -1223,7 +1223,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         name,
         price
       };
-      const items = [...p.items, newItem].sort((a, b) => a.price - b.price);
+      const items = [...p.items, newItem];
       return { ...p, items };
     });
 
@@ -1241,6 +1241,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     });
     onUpdateProducts(updatedProducts);
     showToast('Nominal item dihapus dari katalog', 'info');
+  };
+
+  const handleMoveNominalItem = (prodId: string, itemId: string, direction: -1 | 1) => {
+    const updatedProducts = products.map((p) => {
+      if (p.id !== prodId) return p;
+      const fromIndex = p.items.findIndex((item) => item.id === itemId);
+      const toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= p.items.length) return p;
+      const items = [...p.items];
+      [items[fromIndex], items[toIndex]] = [items[toIndex], items[fromIndex]];
+      return { ...p, items };
+    });
+    onUpdateProducts(updatedProducts);
+    showToast('Urutan nominal berhasil diperbarui.', 'success');
   };
 
   const activeCatalogProduct = products.find((p) => p.id === selectedProdId) || products[0];
@@ -1449,7 +1463,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         ...p,
         items: p.items
           .map((it) => (it.id === itemId ? { ...it, price: rawVal } : it))
-          .sort((a, b) => a.price - b.price)
+
       };
     });
     onUpdateProducts(updated);
@@ -1475,7 +1489,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         ...p,
         items: p.items
           .map((it) => (it.id === itemId ? { ...it, price: rawVal } : it))
-          .sort((a, b) => a.price - b.price)
+
       };
     });
     onUpdateProducts(updated);
@@ -1507,7 +1521,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             }
             return it;
           })
-          .sort((a, b) => a.price - b.price)
+
       };
     });
     onUpdateProducts(updated);
@@ -1617,7 +1631,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       };
       return {
         ...p,
-        items: [...p.items, newItem].sort((a, b) => a.price - b.price)
+        items: [...p.items, newItem]
       };
     });
 
@@ -4128,6 +4142,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   </div>
                                 </div>
 
+                                <p className="text-[10px] text-slate-400">
+                                  Urutan nominal di toko mengikuti urutan di sini. Gunakan tombol ↑ dan ↓ pada setiap kartu; mengubah harga tidak akan mengubah posisi.
+                                </p>
+
                                 {/* Items Grid */}
                                 {visibleItems.length === 0 ? (
                                   <div className="p-8 rounded-xl bg-slate-950/60 border border-white/5 text-center text-xs text-slate-400">
@@ -4137,6 +4155,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                     {visibleItems.map((item) => {
                                       const isZero = item.price === 0;
+                                      const itemIndex = activeCatalogProduct.items.findIndex((candidate) => candidate.id === item.id);
                                       const currentDraft = itemPriceDrafts[item.id] !== undefined
                                         ? itemPriceDrafts[item.id]
                                         : String(item.price);
@@ -4178,16 +4197,36 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                               </div>
                                             </div>
 
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleDeleteNominalItem(activeCatalogProduct.id, item.id)
-                                              }
-                                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 cursor-pointer transition-colors"
-                                              title="Hapus nominal ini"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveNominalItem(activeCatalogProduct.id, item.id, -1)}
+                                                disabled={itemIndex <= 0}
+                                                className="w-7 h-7 rounded-lg bg-slate-900 border border-white/10 text-slate-300 hover:text-white hover:border-cyan-400/60 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                                title="Pindahkan nominal ke atas"
+                                                aria-label={`Pindahkan ${item.name} ke atas`}
+                                              >
+                                                ↑
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveNominalItem(activeCatalogProduct.id, item.id, 1)}
+                                                disabled={itemIndex < 0 || itemIndex >= activeCatalogProduct.items.length - 1}
+                                                className="w-7 h-7 rounded-lg bg-slate-900 border border-white/10 text-slate-300 hover:text-white hover:border-cyan-400/60 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                                title="Pindahkan nominal ke bawah"
+                                                aria-label={`Pindahkan ${item.name} ke bawah`}
+                                              >
+                                                ↓
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteNominalItem(activeCatalogProduct.id, item.id)}
+                                                className="p-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 cursor-pointer transition-colors"
+                                                title="Hapus nominal ini"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
                                           </div>
 
                                           {/* Direct Quick-Edit Price Input & Save */}
